@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>能量条 Energy Bar — AI 订阅用量与余额总览</title>
+    <script>
+      // 避免暗色模式闪烁：首屏前读取本地偏好
+      ;(function () {
+        var stored = localStorage.getItem("ai-usage-theme")
+        var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+        if (stored === "dark" || (!stored && prefersDark)) {
+          document.documentElement.classList.add("dark")
+        }
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

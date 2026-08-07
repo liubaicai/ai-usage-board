@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * 瑞士国际主义 (International Typographic Style)
+ * - 黑白灰 + 单一信号红 (#E30613)
+ * - 零圆角、无阴影，信息靠细线 (hairline) 与留白分隔
+ * - Helvetica 系无衬线字体，大字号紧凑字距，数字等宽 (tabular-nums)
+ */
+:root {
+  --background: #fafaf7;
+  --foreground: #141412;
+  --card: #fafaf7;
+  --card-foreground: #141412;
+  --popover: #ffffff;
+  --popover-foreground: #141412;
+  --primary: #141412;
+  --primary-foreground: #fafaf7;
+  --secondary: #f0f0ea;
+  --secondary-foreground: #141412;
+  --muted: #f0f0ea;
+  --muted-foreground: #6f6f68;
+  --accent: #e30613;
+  --accent-foreground: #ffffff;
+  --destructive: #e30613;
+  --destructive-foreground: #ffffff;
+  --border: #dcdcd4;
+  --input: #dcdcd4;
+  --ring: #141412;
+  --radius: 0rem;
+}
+
+.dark {
+  --background: #0e0e0c;
+  --foreground: #f2f2ec;
+  --card: #0e0e0c;
+  --card-foreground: #f2f2ec;
+  --popover: #161613;
+  --popover-foreground: #f2f2ec;
+  --primary: #f2f2ec;
+  --primary-foreground: #0e0e0c;
+  --secondary: #1c1c18;
+  --secondary-foreground: #f2f2ec;
+  --muted: #1c1c18;
+  --muted-foreground: #8a8a80;
+  --accent: #ff3b30;
+  --accent-foreground: #0e0e0c;
+  --destructive: #ff3b30;
+  --destructive-foreground: #0e0e0c;
+  --border: #2a2a25;
+  --input: #2a2a25;
+  --ring: #f2f2ec;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --font-sans: "Helvetica Neue", Helvetica, "Inter", Arial, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-feature-settings: "tnum" 1, "cv05" 1;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+  ::selection {
+    background: var(--accent);
+    color: #ffffff;
+  }
+}
+
+/* 细进度条轨道纹理（可选的斜纹，用于已用超额部分） */
+.hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 2px,
+    currentColor 2px,
+    currentColor 3px
+  );
+}
