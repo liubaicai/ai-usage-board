@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from "react"
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable"
 import { Moon, Plus, RefreshCw, Sun } from "lucide-react"
 
 import { AccountDialog } from "@/components/AccountDialog"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProviderCard } from "@/components/ProviderCard"
 import { Button } from "@/components/ui/button"
 import { seedAccounts } from "@/data/accounts"
@@ -49,6 +59,7 @@ export default function App() {
   const [now, setNow] = useState(Date.now())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Account | null>(null)
 
   // 持久化
   useEffect(() => {
@@ -98,6 +109,21 @@ export default function App() {
 
   const deleteAccount = (id: string) =>
     setAccounts((prev) => prev.filter((a) => a.id !== id))
+
+  // 拖拽排序：按住卡片移动超过 8px 触发，避免误触内部按钮
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setAccounts((prev) => {
+      const from = prev.findIndex((a) => a.id === active.id)
+      const to = prev.findIndex((a) => a.id === over.id)
+      if (from < 0 || to < 0) return prev
+      return arrayMove(prev, from, to)
+    })
+  }
 
   const dateStr = new Date().toLocaleDateString("zh-CN", {
     year: "numeric",
@@ -184,27 +210,32 @@ export default function App() {
         </div>
       </div>
 
-      {/* 卡片网格：严格对齐、行内等高，响应式列数 */}
+      {/* 卡片网格：严格对齐、行内等高，响应式列数；支持拖拽排序 */}
       <main className="mx-auto max-w-[1600px] px-5 pb-16 pt-6 sm:px-8">
-        <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {accounts.map((a) => {
-            const vendor = VENDOR_MAP[a.vendorId]
-            if (!vendor) return null
-            return (
-              <ProviderCard
-                key={a.id}
-                account={a}
-                vendor={vendor}
-                globalRefreshSec={globalRefreshSec}
-                now={now}
-                onEdit={(acc) => {
-                  setEditing(acc)
-                  setDialogOpen(true)
-                }}
-              />
-            )
-          })}
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={accounts.map((a) => a.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {accounts.map((a) => {
+                const vendor = VENDOR_MAP[a.vendorId]
+                if (!vendor) return null
+                return (
+                  <ProviderCard
+                    key={a.id}
+                    account={a}
+                    vendor={vendor}
+                    globalRefreshSec={globalRefreshSec}
+                    now={now}
+                    onEdit={(acc) => {
+                      setEditing(acc)
+                      setDialogOpen(true)
+                    }}
+                    onDelete={setConfirmDelete}
+                  />
+                )
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
 
         {/* 页脚 */}
         <footer className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -220,7 +251,22 @@ export default function App() {
         initial={editing}
         onClose={() => setDialogOpen(false)}
         onSave={upsertAccount}
-        onDelete={deleteAccount}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title="删除接入"
+        description={
+          confirmDelete
+            ? `确定删除「${VENDOR_MAP[confirmDelete.vendorId]?.name ?? ""} · ${confirmDelete.label}」？该账号的用量与配置将一并移除，此操作不可恢复。`
+            : ""
+        }
+        confirmLabel="删除"
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={() => {
+          if (confirmDelete) deleteAccount(confirmDelete.id)
+          setConfirmDelete(null)
+        }}
       />
     </div>
   )

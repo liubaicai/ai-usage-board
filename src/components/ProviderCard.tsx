@@ -1,4 +1,6 @@
-import { Pencil } from "lucide-react"
+import { Pencil, Trash2 } from "lucide-react"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
@@ -73,31 +75,43 @@ interface ProviderCardProps {
   /** 当前时间戳，用于倒计时 */
   now: number
   onEdit: (account: Account) => void
+  onDelete: (account: Account) => void
 }
 
-export function ProviderCard({ account: p, vendor, globalRefreshSec, now, onEdit }: ProviderCardProps) {
+export function ProviderCard({
+  account: p,
+  vendor,
+  globalRefreshSec,
+  now,
+  onEdit,
+  onDelete,
+}: ProviderCardProps) {
   const effectiveSec = p.refreshSec ?? globalRefreshSec
   const remainMs =
     effectiveSec > 0 ? effectiveSec * 1000 - (now - p.lastFetched) : null
 
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: p.id })
+
   return (
     <article
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        touchAction: "none",
+      }}
       className={cn(
-        "group relative flex h-full flex-col border border-border border-t-2 border-t-foreground bg-background px-5 py-5 transition-colors hover:border-foreground/60 hover:border-t-foreground",
+        "group relative flex h-full cursor-grab flex-col border border-border border-t-2 border-t-foreground bg-background px-5 py-5 transition-colors hover:border-foreground/60 hover:border-t-foreground active:cursor-grabbing",
+        isDragging &&
+          "z-50 border-foreground opacity-70 shadow-[0_0_0_1px_var(--foreground)]",
         p.status === "error" && "border-accent border-t-accent"
       )}
     >
-      {/* 悬浮编辑按钮 */}
-      <button
-        onClick={() => onEdit(p)}
-        aria-label={`编辑 ${p.label}`}
-        className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center border border-transparent text-muted-foreground opacity-0 transition-opacity hover:border-foreground hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-      >
-        <Pencil className="h-3.5 w-3.5" />
-      </button>
-
       {/* 卡头：接入方式 / 套餐 / 状态 */}
-      <header className="flex items-center justify-between gap-2 pr-8">
+      <header className="flex items-center justify-between gap-2">
         <Badge variant="muted" className="px-0">
           {AUTH_LABEL[vendor.authType]}
         </Badge>
@@ -174,18 +188,28 @@ export function ProviderCard({ account: p, vendor, globalRefreshSec, now, onEdit
         </div>
       )}
 
-      {/* 卡脚：备注 / 刷新倒计时 / 更新时间（mt-auto 对齐到卡片底部） */}
+      {/* 卡脚：编辑/删除按钮 + 刷新倒计时 / 更新时间（mt-auto 对齐到卡片底部） */}
       <div aria-hidden className="h-5 shrink-0" />
-      <footer className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
-        <span
-          className={cn(
-            "truncate text-[10px] tracking-[0.08em]",
-            p.status === "error" ? "text-accent" : "text-muted-foreground"
-          )}
-        >
-          {p.note ?? "—"}
-        </span>
-        <span className="flex shrink-0 items-center gap-2 text-[10px] tracking-[0.08em] tabular-nums text-muted-foreground">
+      <footer className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onEdit(p)}
+            aria-label={`编辑 ${p.label}`}
+            title="编辑"
+            className="flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button
+            onClick={() => onDelete(p)}
+            aria-label={`删除 ${p.label}`}
+            title="删除"
+            className="flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-white"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+        <span className="flex shrink-0 items-center gap-2.5 text-[10px] tracking-[0.08em] tabular-nums text-muted-foreground">
           <span
             className={cn(
               "inline-block h-1 w-1",
@@ -195,7 +219,8 @@ export function ProviderCard({ account: p, vendor, globalRefreshSec, now, onEdit
           />
           {remainMs !== null ? formatCountdown(remainMs) : "手动"}
           {p.refreshSec !== null && <span className="text-accent">*</span>}
-          {p.updatedAt}
+          <span className="h-2.5 w-px bg-border" aria-hidden />
+          <span title="上次刷新时间">{p.updatedAt}</span>
         </span>
       </footer>
     </article>

@@ -56,10 +56,9 @@ interface AccountDialogProps {
   initial: Account | null
   onClose: () => void
   onSave: (account: Account) => void
-  onDelete?: (id: string) => void
 }
 
-export function AccountDialog({ open, initial, onClose, onSave, onDelete }: AccountDialogProps) {
+export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogProps) {
   const editing = initial !== null
   const [vendorId, setVendorId] = useState(VENDORS[0].id)
   const [label, setLabel] = useState("")
@@ -248,22 +247,7 @@ export function AccountDialog({ open, initial, onClose, onSave, onDelete }: Acco
         </div>
 
         {/* 底栏 */}
-        <div className="flex items-center justify-between border-t border-border px-5 py-4">
-          {editing && onDelete ? (
-            <button
-              onClick={() => {
-                if (window.confirm(`确定删除「${initial.label}」？此操作不可恢复。`)) {
-                  onDelete(initial.id)
-                  onClose()
-                }
-              }}
-              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent hover:underline"
-            >
-              删除
-            </button>
-          ) : (
-            <span />
-          )}
+        <div className="flex items-center justify-end border-t border-border px-5 py-4">
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>
               取消
