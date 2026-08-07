@@ -19,6 +19,15 @@ export interface FetchResult {
   note?: string
   /** 套餐等级（如 Coding Plan 的 lite/pro/max） */
   plan?: string
+  /** 账号真实名称（如 Codex 授权解析出的邮箱 / 用户名），用于卡片区分多账号 */
+  accountName?: string
+  /** 订阅到期时间（格式化字符串，如 2026-09-08） */
+  subscriptionExpiresAt?: string
+  /**
+   * 可选：本次请求后需要写回账号配置的字段（如 token 自动刷新后的新授权内容）。
+   * 由调用方（usage.ts）合并进 store 的 account.config。
+   */
+  configUpdate?: Record<string, string>
 }
 
 export type Adapter = (config: Record<string, string>) => Promise<FetchResult>
@@ -31,14 +40,17 @@ export function hasAdapter(vendorId: string): boolean {
 export async function fetchAccountUsage(
   account: Account,
   vendor: VendorDef
-): Promise<Account> {
+): Promise<{ account: Account; configUpdate?: Record<string, string> }> {
   const adapter = ADAPTERS[vendor.id]
   if (!adapter) throw new Error(`「${vendor.name}」尚未接入实时查询`)
   const result = await adapter(account.config)
   const now = Date.now()
-  return {
+  const next: Account = {
     ...account,
     plan: result.plan ?? account.plan,
+    accountName: result.accountName ?? account.accountName,
+    subscriptionExpiresAt:
+      result.subscriptionExpiresAt ?? account.subscriptionExpiresAt,
     balance: result.balance ?? account.balance,
     windows: result.windows ?? account.windows,
     status: result.status ?? "ok",
@@ -46,4 +58,5 @@ export async function fetchAccountUsage(
     lastFetched: now,
     updatedAt: formatTime(now),
   }
+  return { account: next, configUpdate: result.configUpdate }
 }

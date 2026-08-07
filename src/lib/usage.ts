@@ -26,9 +26,12 @@ async function doRefresh(id: string): Promise<Account> {
 
   const nowTs = Date.now()
   let updated: Account
+  let configUpdate: Record<string, string> | undefined
   try {
     // 真实厂商接口，全部在服务端发起（本项目的厂商目录只保留已接入的厂商）
-    updated = await fetchAccountUsage(acc, vendor)
+    const res = await fetchAccountUsage(acc, vendor)
+    updated = res.account
+    configUpdate = res.configUpdate
   } catch (e) {
     updated = {
       ...acc,
@@ -40,7 +43,14 @@ async function doRefresh(id: string): Promise<Account> {
   }
 
   await saveStore((s) => {
-    s.accounts = s.accounts.map((a) => (a.id === id ? updated : a))
+    s.accounts = s.accounts.map((a) => {
+      if (a.id !== id) return a
+      // token 自动刷新后写回新授权内容（如新的 auth.json）
+      if (configUpdate) {
+        updated = { ...updated, config: { ...a.config, ...configUpdate } }
+      }
+      return updated
+    })
   })
   return updated
 }

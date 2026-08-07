@@ -1,6 +1,6 @@
 "use client"
 
-import { Pencil, Trash2 } from "lucide-react"
+import { Pencil, RefreshCw, Trash2 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
@@ -14,8 +14,35 @@ import {
   type VendorDef,
 } from "@/lib/types"
 
-/* 瑞士风格细进度条：3px 轨道，过量/告警转信号红 */
-function QuotaBar({ window: w }: { window: QuotaWindow }) {
+/* 瑞士风格细进度条：3px 轨道，过量/告警转信号红；window 为 null 时渲染灰色占位条 */
+function QuotaBar({
+  window: w,
+  label,
+}: {
+  window: QuotaWindow | null
+  label?: string
+}) {
+  // 占位：该窗口当前无数据（如账号暂未开启 5h 限额），显示灰色空白条
+  if (!w) {
+    return (
+      <div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
+            {label ?? "限额"}
+          </span>
+          <span className="text-[10px] tracking-[0.08em] text-muted-foreground/40">
+            —
+          </span>
+        </div>
+        <div className="mt-1.5 flex items-baseline gap-3">
+          <span className="text-3xl font-bold leading-none tracking-tighter text-muted-foreground/30">
+            —
+          </span>
+        </div>
+        <div className="mt-2 h-[3px] w-full bg-foreground/5" />
+      </div>
+    )
+  }
   const danger = w.usedPercent >= 80
   return (
     <div>
@@ -76,6 +103,10 @@ interface ProviderCardProps {
   globalRefreshSec: number
   /** 当前时间戳，用于倒计时 */
   now: number
+  /** 单卡立即刷新 */
+  onRefresh: (account: Account) => void
+  /** 该卡片是否正在刷新（按钮旋转） */
+  refreshing?: boolean
   onEdit: (account: Account) => void
   onDelete: (account: Account) => void
 }
@@ -85,15 +116,36 @@ export function ProviderCard({
   vendor,
   globalRefreshSec,
   now,
+  onRefresh,
+  refreshing,
   onEdit,
   onDelete,
 }: ProviderCardProps) {
   const effectiveSec = p.refreshSec ?? globalRefreshSec
   const remainMs =
     effectiveSec > 0 ? effectiveSec * 1000 - (now - p.lastFetched) : null
+  /** 是否设置了自定义名称（区别于供应商默认名） */
+  const customLabel = !!p.label && p.label !== vendor.name
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: p.id })
+
+  /** 配额窗口渲染序列：有模板按模板（缺失窗口补灰色占位），模板外的窗口（如代码审查限额）追加 */
+  const windows = p.windows ?? []
+  const tpl = vendor.windowTemplates
+  const quotaBars =
+    tpl && tpl.length > 0
+      ? [
+          ...tpl.map((t) => ({
+            key: t.id,
+            label: t.label,
+            w: windows.find((x) => x.label === t.label) ?? null,
+          })),
+          ...windows
+            .filter((w) => !tpl.some((t) => t.label === w.label))
+            .map((w) => ({ key: w.id, label: w.label, w })),
+        ]
+      : windows.map((w) => ({ key: w.id, label: w.label, w }))
 
   return (
     <article
@@ -119,7 +171,10 @@ export function ProviderCard({
         </Badge>
         <div className="flex items-center gap-2">
           {p.plan && (
-            <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.14em] text-foreground"
+              title="套餐等级 (plan_type)"
+            >
               {p.plan}
             </span>
           )}
@@ -127,16 +182,24 @@ export function ProviderCard({
         </div>
       </header>
 
-      {/* 名称 + 账号昵称（同厂商多账号的区分）：主标题加大，一眼定位 */}
-      <h3 className="mt-3 text-[26px] font-black leading-none tracking-tighter">
-        {vendor.name}
+      {/* 主标题：自定义名称优先，否则供应商名兜底 */}
+      <h3 className="mt-3 truncate text-[26px] font-black leading-none tracking-tighter">
+        {customLabel ? p.label : vendor.name}
       </h3>
+      {/* 副标题行：厂商 · 账号名 · 订阅到期 */}
       <p className="mt-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-        {vendor.vendor} ·{" "}
-        {p.windows?.length ? "订阅 · 配额" : p.balance ? "按量付费" : vendor.kind === "subscription" ? "订阅制" : "按量付费"}
-        {p.label && p.label !== vendor.name && (
-          <span className="border border-accent px-1 py-px text-[9px] font-bold tracking-[0.12em] text-accent">
-            {p.label}
+        <span className="shrink-0">{vendor.vendor}</span>
+        {p.accountName && (
+          <span className="min-w-0 truncate normal-case tracking-[0.06em]">
+            {p.accountName}
+          </span>
+        )}
+        {p.subscriptionExpiresAt && (
+          <span
+            className="shrink-0 normal-case tracking-[0.06em] tabular-nums"
+            title="订阅到期时间"
+          >
+            订阅至 {p.subscriptionExpiresAt}
           </span>
         )}
       </p>
@@ -148,11 +211,11 @@ export function ProviderCard({
         </p>
       )}
 
-      {/* 主体：优先按数据形态渲染（配额窗口 / 余额） */}
-      {p.windows && p.windows.length > 0 && (
+      {/* 主体：配额窗口（缺失的模板窗口显示灰色占位）或余额 */}
+      {quotaBars.length > 0 && (
         <div className="mt-5 space-y-5">
-          {p.windows.map((w) => (
-            <QuotaBar key={w.id} window={w} />
+          {quotaBars.map((b) => (
+            <QuotaBar key={b.key} window={b.w} label={b.label} />
           ))}
         </div>
       )}
@@ -202,6 +265,14 @@ export function ProviderCard({
       <div aria-hidden className="h-5 shrink-0" />
       <footer className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5">
         <div className="flex items-center gap-1">
+          <button
+            onClick={() => onRefresh(p)}
+            aria-label={`刷新 ${p.label}`}
+            title="立即刷新"
+            className="flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
+          </button>
           <button
             onClick={() => onEdit(p)}
             aria-label={`编辑 ${p.label}`}

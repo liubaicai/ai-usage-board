@@ -5,6 +5,7 @@ import { X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { VENDORS, VENDOR_MAP } from "@/vendors"
+import { apiClient } from "@/lib/client-api"
 import { cn } from "@/lib/utils"
 import {
   AUTH_LABEL,
@@ -87,8 +88,17 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const [plan, setPlan] = useState("")
   const [config, setConfig] = useState<Record<string, string>>({})
   const [refreshSec, setRefreshSec] = useState<string>("inherit")
+  // Codex OAuth 设备授权状态
+  const [oauthFlow, setOauthFlow] = useState<{
+    deviceCode: string
+    userCode: string
+    verificationUri: string
+    interval: number
+  } | null>(null)
+  const [oauthError, setOauthError] = useState("")
+  const [oauthDone, setOauthDone] = useState(false)
 
-  // 新建时给下拉字段（如区域）填默认值
+  // 新建时给下拉字段（如区域/授权方式）填默认值
   const vendorDefaults = (v: (typeof VENDORS)[number]) => {
     const defaults: Record<string, string> = {}
     for (const f of v.fields) {
@@ -100,6 +110,9 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   // 打开时初始化表单
   useEffect(() => {
     if (!open) return
+    setOauthFlow(null)
+    setOauthError("")
+    setOauthDone(false)
     if (initial) {
       setVendorId(initial.vendorId)
       setLabel(initial.label)
@@ -123,17 +136,62 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
+  // OAuth 设备授权：轮询授权结果，成功后把凭证写入 content（auth.json 形态）
+  useEffect(() => {
+    if (!open || !oauthFlow || oauthDone) return
+    const timer = setInterval(async () => {
+      try {
+        const r = await apiClient.oauthCodexPoll(oauthFlow.deviceCode)
+        if (r.status === "ok" && r.tokens) {
+          setConfig((c) => ({
+            ...c,
+            content: JSON.stringify({
+              tokens: {
+                access_token: r.tokens!.access_token,
+                refresh_token: r.tokens!.refresh_token,
+                account_id: r.tokens!.account_id,
+              },
+            }),
+          }))
+          setOauthDone(true)
+          setOauthFlow(null)
+        } else if (r.status === "expired") {
+          setOauthError("授权已过期，请重新开始")
+          setOauthFlow(null)
+        }
+      } catch {
+        // 网络/服务端瞬时错误，继续轮询
+      }
+    }, (oauthFlow.interval || 5) * 1000)
+    return () => clearInterval(timer)
+  }, [open, oauthFlow, oauthDone])
+
+  const startOauth = async () => {
+    setOauthError("")
+    try {
+      const r = await apiClient.oauthCodexStart()
+      setOauthFlow({
+        deviceCode: r.device_code,
+        userCode: r.user_code,
+        verificationUri: r.verification_uri,
+        interval: r.interval || 5,
+      })
+    } catch (e) {
+      setOauthError(e instanceof Error ? e.message : "发起 OAuth 授权失败")
+    }
+  }
+
   if (!open) return null
 
   const vendor = VENDOR_MAP[vendorId]
-  // 必填校验：密钥已保存在后端（哨兵/旧值存在）时允许留空
-  // 条件显示：dependsOn 字段仅在满足条件时展示并参与必填校验
-  const visibleFields = vendor.fields.filter(
-    (f) =>
-      !f.dependsOn ||
-      config[f.dependsOn.key] === f.dependsOn.value ||
-      (editing && initial?.config[f.dependsOn.key] === f.dependsOn.value)
-  )
+  // 条件显示：dependsOn 字段仅在 config[key] 命中 value/values 之一时展示
+  const isDepVisible = (f: ConfigField) => {
+    if (!f.dependsOn) return true
+    const d = f.dependsOn
+    const allowed = d.values ?? (d.value ? [d.value] : [])
+    return allowed.includes(config[d.key] ?? "")
+  }
+  const visibleFields = vendor.fields.filter(isDepVisible)
   const missingRequired = visibleFields.some((f) => {
     if (!f.required) return false
     const v = (config[f.key] ?? "").trim()
@@ -145,13 +203,12 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const handleSave = () => {
     const sec = refreshSec === "inherit" ? null : Number(refreshSec)
     // 密钥留空且原本已保存 → 发 KEEP_SECRET，后端保持不变；
-    // 隐藏字段（dependsOn 不满足）保留旧值，避免切换区域时丢失团队/项目 ID
+    // 隐藏字段（dependsOn 不满足）保留当前/旧值（如 OAuth 自动写入的 content）
     const out: Record<string, string> = {}
     for (const f of vendor.fields) {
-      const visible =
-        !f.dependsOn || config[f.dependsOn.key] === f.dependsOn.value
-      if (!visible) {
-        out[f.key] = initial?.config[f.key] ?? ""
+      if (!isDepVisible(f)) {
+        const cur = config[f.key]
+        out[f.key] = cur !== undefined && cur !== "" ? cur : (initial?.config[f.key] ?? "")
         continue
       }
       const raw = config[f.key] ?? ""
@@ -242,10 +299,10 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
             )}
           </div>
 
-          {/* 昵称 + 套餐 */}
+          {/* 名称 + 套餐 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelCls}>账号昵称</label>
+              <label className={labelCls}>名称</label>
               <input
                 className={inputCls}
                 placeholder={`如：主账号 / 小号（默认 ${vendor.name}）`}
@@ -278,6 +335,52 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
               />
             </div>
           ))}
+
+          {/* Codex OAuth 设备授权面板 */}
+          {vendor.id === "codex" && config.authMethod === "oauth" && (
+            <div>
+              <span className={labelCls}>OAuth 设备授权</span>
+              {oauthDone ? (
+                <div className="border border-accent px-3 py-2.5 text-xs">
+                  ✓ 已获取凭证，点击「保存」完成添加
+                </div>
+              ) : oauthFlow ? (
+                <div className="space-y-2.5 border border-border p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      浏览器打开
+                    </span>
+                    <a
+                      href={oauthFlow.verificationUri}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-accent underline"
+                    >
+                      {oauthFlow.verificationUri}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                      输入代码
+                    </span>
+                    <span className="text-2xl font-black tracking-[0.25em] tabular-nums">
+                      {oauthFlow.userCode}
+                    </span>
+                  </div>
+                  <p className="text-[10px] tracking-[0.08em] text-muted-foreground">
+                    授权完成后自动获取凭证，无需其他操作
+                  </p>
+                </div>
+              ) : (
+                <Button size="sm" onClick={() => void startOauth()}>
+                  开始 OAuth 授权
+                </Button>
+              )}
+              {oauthError && (
+                <p className="mt-1.5 text-[10px] tracking-[0.08em] text-accent">{oauthError}</p>
+              )}
+            </div>
+          )}
 
           {/* 单卡刷新间隔 */}
           <div>

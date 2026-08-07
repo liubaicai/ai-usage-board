@@ -37,4 +37,20 @@ export const apiClient = {
     }),
   refreshAccount: (id: string) => api<Account>(`/api/usage/${id}?refresh=1`),
   refreshAll: () => api<Account[]>("/api/usage/refresh-all", { method: "POST" }),
+
+  // Codex OAuth 设备授权
+  oauthCodexStart: () =>
+    api<{
+      device_code: string
+      user_code: string
+      verification_uri: string
+      expires_in: number
+      interval: number
+    }>("/api/oauth/codex", { method: "POST", body: JSON.stringify({}) }),
+  oauthCodexPoll: (deviceCode: string) =>
+    api<{
+      status: "ok" | "pending" | "expired"
+      error?: string
+      tokens?: { access_token: string; refresh_token?: string; account_id?: string }
+    }>("/api/oauth/codex", { method: "POST", body: JSON.stringify({ deviceCode }) }),
 }

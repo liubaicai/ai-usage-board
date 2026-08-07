@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Account | null>(null)
+  const [refreshingId, setRefreshingId] = useState<string | null>(null)
   const inFlight = useRef(new Set<string>())
 
   const loadState = async () => {
@@ -69,6 +70,7 @@ export default function Dashboard() {
   const refreshOne = async (id: string) => {
     if (inFlight.current.has(id)) return
     inFlight.current.add(id)
+    setRefreshingId(id)
     try {
       const acc = await apiClient.refreshAccount(id)
       setAccounts((prev) => prev.map((a) => (a.id === acc.id ? acc : a)))
@@ -89,6 +91,7 @@ export default function Dashboard() {
       )
     } finally {
       inFlight.current.delete(id)
+      setRefreshingId((cur) => (cur === id ? null : cur))
     }
   }
 
@@ -284,6 +287,8 @@ export default function Dashboard() {
                     vendor={vendor}
                     globalRefreshSec={globalRefreshSec}
                     now={now}
+                    onRefresh={(acc) => void refreshOne(acc.id)}
+                    refreshing={refreshingId === a.id}
                     onEdit={(acc) => {
                       setEditing(acc)
                       setDialogOpen(true)

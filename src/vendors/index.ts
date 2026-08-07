@@ -1,6 +1,7 @@
 import type { Adapter } from "@/lib/adapters"
 import type { VendorDef } from "@/lib/types"
 
+import { adapter as codexAdapter, codex } from "./codex"
 import { adapter as deepseekAdapter, deepseek } from "./deepseek"
 import { adapter as moonshotAdapter, moonshot } from "./moonshot"
 import { adapter as openrouterAdapter, openrouter } from "./openrouter"
@@ -15,6 +16,7 @@ import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
  * 新增厂商：在本目录新建一个文件（导出 VendorDef + Adapter），并在下方注册。
  */
 export const VENDORS: VendorDef[] = [
+  codex,
   deepseek,
   siliconflow,
   moonshot,
@@ -28,6 +30,7 @@ export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
 
 /** 厂商适配器注册表：vendorId → Adapter（与厂商文件一一对应） */
 export const ADAPTERS: Record<string, Adapter> = {
+  [codex.id]: codexAdapter,
   [deepseek.id]: deepseekAdapter,
   [siliconflow.id]: siliconflowAdapter,
   [moonshot.id]: moonshotAdapter,

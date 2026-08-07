@@ -27,8 +27,8 @@ export interface ConfigField {
   required?: boolean
   /** 下拉选择（如国内/国际站区域） */
   options?: { value: string; label: string }[]
-  /** 条件显示：仅当 config[key] === value 时该字段才展示并参与必填校验 */
-  dependsOn?: { key: string; value: string }
+  /** 条件显示：仅当 config[key] 命中 value（或 values 之一）时该字段才展示并参与必填校验 */
+  dependsOn?: { key: string; value?: string; values?: string[] }
 }
 
 /** 订阅制限额窗口模板（厂商级） */
@@ -71,9 +71,13 @@ export interface Balance {
 export interface Account {
   id: string
   vendorId: string
-  /** 账号昵称，用于区分同厂商多账号 */
+  /** 账号名称（自定义名），用于区分同厂商多账号 */
   label: string
   plan?: string
+  /** 账号真实名称（如 Codex 授权解析出的邮箱 / 用户名），用于区分多账号 */
+  accountName?: string
+  /** 订阅到期时间（格式化后的日期字符串，如 2026-09-08），仅订阅制厂商有 */
+  subscriptionExpiresAt?: string
   /** 按厂商 ConfigField.key 存放的配置值 */
   config: Record<string, string>
   /** 单卡刷新间隔（秒）。null = 跟随全局；0 = 手动 */
