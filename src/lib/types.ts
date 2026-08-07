@@ -83,6 +83,30 @@ export interface Account {
   updatedAt: string
 }
 
+/** 密钥字段"已保存"哨兵：后端返回给前端的占位值，编辑时留空表示保持不变 */
+export const KEEP_SECRET = "__KEEP__"
+
+/** 全局设置 */
+export interface AppSettings {
+  globalRefreshSec: number
+}
+
+/** 创建/更新账号的请求体（不含用量字段，由后端生成或保留） */
+export interface AccountInput {
+  vendorId: string
+  label: string
+  plan?: string
+  config: Record<string, string>
+  refreshSec: number | null
+}
+
+/** GET /api/state 的响应 */
+export interface StateResponse {
+  accounts: Account[]
+  settings: AppSettings
+}
+
+
 export const AUTH_LABEL: Record<AuthType, string> = {
   cookie: "COOKIE",
   apikey: "API KEY",

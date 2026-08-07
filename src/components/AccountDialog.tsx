@@ -1,14 +1,17 @@
+"use client"
+
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { createAccount } from "@/data/mock"
-import { VENDORS, VENDOR_MAP } from "@/data/vendors"
+import { VENDORS, VENDOR_MAP } from "@/vendors"
 import { cn } from "@/lib/utils"
 import {
   AUTH_LABEL,
+  KEEP_SECRET,
   REFRESH_OPTIONS,
   type Account,
+  type AccountInput,
   type ConfigField,
 } from "@/lib/types"
 
@@ -26,12 +29,16 @@ function Field({
   value: string
   onChange: (v: string) => void
 }) {
+  // 密钥已保存在后端：留空表示保持不变
+  const isSavedSecret = field.secret && value === KEEP_SECRET
+  const display = isSavedSecret ? "" : value
+  const placeholder = isSavedSecret ? "已保存，留空则不修改" : field.placeholder
   if (field.multiline) {
     return (
       <textarea
         className={cn(inputCls, "min-h-20 resize-y font-mono text-xs")}
-        placeholder={field.placeholder}
-        value={value}
+        placeholder={placeholder}
+        value={display}
         onChange={(e) => onChange(e.target.value)}
         spellCheck={false}
       />
@@ -41,8 +48,8 @@ function Field({
     <input
       type={field.secret ? "password" : "text"}
       className={cn(inputCls, field.secret && "font-mono")}
-      placeholder={field.placeholder}
-      value={value}
+      placeholder={placeholder}
+      value={display}
       onChange={(e) => onChange(e.target.value)}
       spellCheck={false}
       autoComplete="off"
@@ -52,10 +59,10 @@ function Field({
 
 interface AccountDialogProps {
   open: boolean
-  /** null = 新增模式 */
+  /** null = 新增模式；编辑时 config 中密钥为 KEEP_SECRET 哨兵 */
   initial: Account | null
   onClose: () => void
-  onSave: (account: Account) => void
+  onSave: (input: AccountInput) => void
 }
 
 export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogProps) {
@@ -95,25 +102,34 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   if (!open) return null
 
   const vendor = VENDOR_MAP[vendorId]
-  const missingRequired = vendor.fields.some(
-    (f) => f.required && !(config[f.key] ?? "").trim()
-  )
+  // 必填校验：密钥已保存在后端（哨兵/旧值存在）时允许留空
+  const missingRequired = vendor.fields.some((f) => {
+    if (!f.required) return false
+    const v = (config[f.key] ?? "").trim()
+    if (v && v !== KEEP_SECRET) return false
+    if (editing && f.secret && initial?.config[f.key]) return false
+    return true
+  })
 
   const handleSave = () => {
     const sec = refreshSec === "inherit" ? null : Number(refreshSec)
-    if (editing) {
-      onSave({
-        ...initial,
-        label: label.trim() || vendor.name,
-        plan: plan.trim() || vendor.defaultPlan,
-        config,
-        refreshSec: sec,
-      })
-    } else {
-      const acc = createAccount(vendor, label, config, sec)
-      if (plan.trim()) acc.plan = plan.trim()
-      onSave(acc)
+    // 密钥留空且原本已保存 → 发 KEEP_SECRET，后端保持不变
+    const out: Record<string, string> = {}
+    for (const f of vendor.fields) {
+      const raw = config[f.key] ?? ""
+      if (f.secret && !raw.trim() && editing && initial?.config[f.key]) {
+        out[f.key] = KEEP_SECRET
+      } else {
+        out[f.key] = raw
+      }
     }
+    onSave({
+      vendorId,
+      label: label.trim() || vendor.name,
+      plan: plan.trim() || vendor.defaultPlan,
+      config: out,
+      refreshSec: sec,
+    })
     onClose()
   }
 
@@ -241,7 +257,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
               ))}
             </select>
             <p className="mt-1.5 text-[10px] tracking-[0.08em] text-muted-foreground">
-              单卡设置优先于全局刷新间隔；凭据仅保存在本地浏览器。
+              单卡设置优先于全局刷新间隔；凭据仅保存在后端服务器。
             </p>
           </div>
         </div>

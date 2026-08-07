@@ -1,3 +1,5 @@
+"use client"
+
 import { Pencil, Trash2 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
@@ -137,6 +139,13 @@ export function ProviderCard({
           </span>
         )}
       </p>
+
+      {/* 错误信息：拉取失败 / 余额不足时显示原因 */}
+      {p.status === "error" && p.note && (
+        <p className="mt-2 border-l-2 border-accent pl-2 text-[10px] leading-relaxed tracking-[0.06em] text-accent">
+          {p.note}
+        </p>
+      )}
 
       {/* 主体：订阅 → 限额窗口；按量 → 余额 */}
       {vendor.kind === "subscription" && p.windows && (

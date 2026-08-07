@@ -1,0 +1,23 @@
+import type { Adapter } from "@/lib/adapters"
+import type { VendorDef } from "@/lib/types"
+
+import { adapter as deepseekAdapter, deepseek } from "./deepseek"
+import { adapter as siliconflowAdapter, siliconflow } from "./siliconflow"
+
+/**
+ * 厂商聚合入口。
+ * 说明：同一家供应商若有多种接入方式（如订阅 Plan、按量计费），
+ * 每种接入方式各占一个独立文件、算作一个"厂商"（vendorId 不同）。
+ * 新增厂商：在本目录新建一个文件（导出 VendorDef + Adapter），并在下方注册。
+ */
+export const VENDORS: VendorDef[] = [deepseek, siliconflow]
+
+export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
+  VENDORS.map((v) => [v.id, v])
+)
+
+/** 厂商适配器注册表：vendorId → Adapter（与厂商文件一一对应） */
+export const ADAPTERS: Record<string, Adapter> = {
+  [deepseek.id]: deepseekAdapter,
+  [siliconflow.id]: siliconflowAdapter,
+}

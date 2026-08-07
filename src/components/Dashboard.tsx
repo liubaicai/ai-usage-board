@@ -1,3 +1,5 @@
+"use client"
+
 import { useEffect, useRef, useState } from "react"
 import {
   DndContext,
@@ -14,37 +16,22 @@ import { AccountDialog } from "@/components/AccountDialog"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProviderCard } from "@/components/ProviderCard"
 import { Button } from "@/components/ui/button"
-import { seedAccounts } from "@/data/accounts"
-import { refreshUsage } from "@/data/mock"
-import { VENDOR_MAP } from "@/data/vendors"
-import { REFRESH_OPTIONS, type Account } from "@/lib/types"
+import { VENDOR_MAP } from "@/vendors"
+import { apiClient } from "@/lib/client-api"
+import {
+  REFRESH_OPTIONS,
+  formatTime,
+  type Account,
+  type AccountInput,
+} from "@/lib/types"
 
-const LS_ACCOUNTS = "ai-usage-accounts"
-const LS_GLOBAL_REFRESH = "ai-usage-global-refresh"
 const LS_THEME = "ai-usage-theme"
 
-function loadAccounts(): Account[] {
-  try {
-    const raw = localStorage.getItem(LS_ACCOUNTS)
-    if (raw) {
-      const list = JSON.parse(raw) as Account[]
-      if (Array.isArray(list) && list.length > 0) return list
-    }
-  } catch {
-    /* 数据损坏则回落到种子数据 */
-  }
-  return seedAccounts()
-}
-
-function loadGlobalRefresh(): number {
-  const raw = Number(localStorage.getItem(LS_GLOBAL_REFRESH))
-  return Number.isFinite(raw) && raw >= 0 && raw <= 86400 ? raw : 300
-}
-
 function useTheme() {
-  const [dark, setDark] = useState(() =>
-    document.documentElement.classList.contains("dark")
-  )
+  const [dark, setDark] = useState(false)
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains("dark"))
+  }, [])
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark)
     localStorage.setItem(LS_THEME, dark ? "dark" : "light")
@@ -52,24 +39,60 @@ function useTheme() {
   return { dark, toggle: () => setDark((v) => !v) }
 }
 
-export default function App() {
+export default function Dashboard() {
   const { dark, toggle } = useTheme()
-  const [accounts, setAccounts] = useState<Account[]>(loadAccounts)
-  const [globalRefreshSec, setGlobalRefreshSec] = useState(loadGlobalRefresh)
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [globalRefreshSec, setGlobalRefreshSec] = useState(300)
+  const [loaded, setLoaded] = useState(false)
   const [now, setNow] = useState(Date.now())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Account | null>(null)
+  const inFlight = useRef(new Set<string>())
 
-  // 持久化
+  const loadState = async () => {
+    try {
+      const s = await apiClient.getState()
+      setAccounts(s.accounts)
+      setGlobalRefreshSec(s.settings.globalRefreshSec)
+    } catch (e) {
+      console.error("加载状态失败", e)
+    } finally {
+      setLoaded(true)
+    }
+  }
   useEffect(() => {
-    localStorage.setItem(LS_ACCOUNTS, JSON.stringify(accounts))
-  }, [accounts])
-  useEffect(() => {
-    localStorage.setItem(LS_GLOBAL_REFRESH, String(globalRefreshSec))
-  }, [globalRefreshSec])
+    void loadState()
+  }, [])
 
-  // 1s ticker：刷新到期的账号（单卡间隔优先于全局）
+  /** 刷新单个账号：让后端发厂商请求，成功后合并返回的账号 */
+  const refreshOne = async (id: string) => {
+    if (inFlight.current.has(id)) return
+    inFlight.current.add(id)
+    try {
+      const acc = await apiClient.refreshAccount(id)
+      setAccounts((prev) => prev.map((a) => (a.id === acc.id ? acc : a)))
+    } catch (e) {
+      const nowTs = Date.now()
+      setAccounts((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                status: "error",
+                note: `拉取失败：${e instanceof Error ? e.message : "未知错误"}`,
+                lastFetched: nowTs,
+                updatedAt: formatTime(nowTs),
+              }
+            : a
+        )
+      )
+    } finally {
+      inFlight.current.delete(id)
+    }
+  }
+
+  // 1s ticker：到期的账号交给后端刷新（单卡间隔优先于全局）
   const globalRef = useRef(globalRefreshSec)
   globalRef.current = globalRefreshSec
   useEffect(() => {
@@ -77,43 +100,54 @@ export default function App() {
       const nowTs = Date.now()
       setNow(nowTs)
       setAccounts((prev) => {
-        let changed = false
-        const next = prev.map((a) => {
+        for (const a of prev) {
           const eff = a.refreshSec ?? globalRef.current
           if (eff > 0 && nowTs - a.lastFetched >= eff * 1000) {
-            changed = true
-            return refreshUsage(a, VENDOR_MAP[a.vendorId], nowTs)
+            void refreshOne(a.id)
           }
-          return a
-        })
-        return changed ? next : prev
+        }
+        return prev
       })
     }, 1000)
     return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const refreshAll = () => {
-    const nowTs = Date.now()
-    setNow(nowTs)
-    setAccounts((prev) =>
-      prev.map((a) => refreshUsage(a, VENDOR_MAP[a.vendorId], nowTs))
-    )
+  const refreshAll = async () => {
+    setNow(Date.now())
+    try {
+      setAccounts(await apiClient.refreshAll())
+    } catch (e) {
+      console.error("刷新全部失败", e)
+    }
   }
 
-  const upsertAccount = (acc: Account) =>
-    setAccounts((prev) =>
-      prev.some((a) => a.id === acc.id)
-        ? prev.map((a) => (a.id === acc.id ? acc : a))
-        : [...prev, acc]
-    )
+  const handleSave = async (input: AccountInput) => {
+    if (editing) {
+      await apiClient.updateAccount(editing.id, input)
+    } else {
+      await apiClient.createAccount(input)
+    }
+    setDialogOpen(false)
+    await loadState()
+  }
 
-  const deleteAccount = (id: string) =>
-    setAccounts((prev) => prev.filter((a) => a.id !== id))
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    await apiClient.deleteAccount(confirmDelete.id)
+    setConfirmDelete(null)
+    await loadState()
+  }
 
-  // 拖拽排序：按住卡片移动超过 8px 触发，避免误触内部按钮
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  )
+  const handleGlobalRefresh = async (v: number) => {
+    setGlobalRefreshSec(v)
+    try {
+      await apiClient.setSettings(v)
+    } catch (e) {
+      console.error("保存全局刷新间隔失败", e)
+    }
+  }
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -121,9 +155,18 @@ export default function App() {
       const from = prev.findIndex((a) => a.id === active.id)
       const to = prev.findIndex((a) => a.id === over.id)
       if (from < 0 || to < 0) return prev
-      return arrayMove(prev, from, to)
+      const next = arrayMove(prev, from, to)
+      void apiClient
+        .reorder(next.map((a) => a.id))
+        .then(setAccounts)
+        .catch((e) => console.error("保存排序失败", e))
+      return next
     })
   }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
 
   const dateStr = new Date().toLocaleDateString("zh-CN", {
     year: "numeric",
@@ -198,7 +241,7 @@ export default function App() {
             <select
               className="w-full appearance-none bg-transparent py-1 uppercase outline-none"
               value={String(globalRefreshSec)}
-              onChange={(e) => setGlobalRefreshSec(Number(e.target.value))}
+              onChange={(e) => handleGlobalRefresh(Number(e.target.value))}
             >
               {REFRESH_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -212,6 +255,22 @@ export default function App() {
 
       {/* 卡片网格：严格对齐、行内等高，响应式列数；支持拖拽排序 */}
       <main className="mx-auto max-w-[1600px] px-5 pb-16 pt-6 sm:px-8">
+        {!loaded && (
+          <div className="py-16 text-center text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+            加载中…
+          </div>
+        )}
+        {loaded && accounts.length === 0 && (
+          <div className="border border-dashed border-border py-20 text-center">
+            <span className="block h-3 w-3 bg-accent" aria-hidden />
+            <p className="mt-4 text-sm font-bold uppercase tracking-[0.24em]">
+              暂无接入
+            </p>
+            <p className="mt-2 text-xs tracking-[0.1em] text-muted-foreground">
+              点击右上角「+ 新增接入」，选择供应商并填写凭据
+            </p>
+          </div>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={accounts.map((a) => a.id)} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -239,7 +298,7 @@ export default function App() {
 
         {/* 页脚 */}
         <footer className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          <span>凭据仅存本地 · 不上传</span>
+          <span>凭据仅存后端 · 不出服务器</span>
           <span>
             <span className="text-accent">*</span> 单卡刷新间隔 · 优先于全局
           </span>
@@ -250,7 +309,7 @@ export default function App() {
         open={dialogOpen}
         initial={editing}
         onClose={() => setDialogOpen(false)}
-        onSave={upsertAccount}
+        onSave={handleSave}
       />
 
       <ConfirmDialog
@@ -263,10 +322,7 @@ export default function App() {
         }
         confirmLabel="删除"
         onCancel={() => setConfirmDelete(null)}
-        onConfirm={() => {
-          if (confirmDelete) deleteAccount(confirmDelete.id)
-          setConfirmDelete(null)
-        }}
+        onConfirm={() => void handleDelete()}
       />
     </div>
   )
