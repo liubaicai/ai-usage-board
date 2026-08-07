@@ -2,15 +2,25 @@ import type { Adapter } from "@/lib/adapters"
 import type { VendorDef } from "@/lib/types"
 
 import { adapter as deepseekAdapter, deepseek } from "./deepseek"
+import { adapter as moonshotAdapter, moonshot } from "./moonshot"
+import { adapter as openrouterAdapter, openrouter } from "./openrouter"
 import { adapter as siliconflowAdapter, siliconflow } from "./siliconflow"
+import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
 
 /**
  * 厂商聚合入口。
  * 说明：同一家供应商若有多种接入方式（如订阅 Plan、按量计费），
  * 每种接入方式各占一个独立文件、算作一个"厂商"（vendorId 不同）。
+ * 同一接入方式若区分站点（国内/国际），用配置字段（select）选择端点。
  * 新增厂商：在本目录新建一个文件（导出 VendorDef + Adapter），并在下方注册。
  */
-export const VENDORS: VendorDef[] = [deepseek, siliconflow]
+export const VENDORS: VendorDef[] = [
+  deepseek,
+  siliconflow,
+  moonshot,
+  openrouter,
+  zhipuCoding,
+]
 
 export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
   VENDORS.map((v) => [v.id, v])
@@ -20,4 +30,7 @@ export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
 export const ADAPTERS: Record<string, Adapter> = {
   [deepseek.id]: deepseekAdapter,
   [siliconflow.id]: siliconflowAdapter,
+  [moonshot.id]: moonshotAdapter,
+  [openrouter.id]: openrouterAdapter,
+  [zhipuCoding.id]: zhipuCodingAdapter,
 }

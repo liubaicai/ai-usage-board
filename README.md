@@ -27,7 +27,9 @@
 - **亮暗双主题**：跟随系统偏好，支持手动切换，本地记忆不闪烁
 - **全栈后端**：厂商接口请求、卡片列表/顺序、账号配置与 API Key 全部存放在后端，单一 JSON 文件存储
 
-> 💡 接入进度：**DeepSeek、SiliconFlow 已接通真实余额查询**（服务端直连厂商 API）。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：先在 `src/data/vendors.ts` 加条目，再到 `src/lib/adapters.ts` 注册适配器即可。
+> 💡 接入进度：**DeepSeek、SiliconFlow、Moonshot (Kimi)、OpenRouter、智谱 GLM Coding Plan（订阅配额）** 均已接通真实查询（服务端直连厂商 API）。其中 **Moonshot 与智谱 Coding Plan 区分国内/国际站**，在卡片配置中选择区域。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：在 `src/vendors/` 新建文件（导出 `VendorDef` + `Adapter`），再到 `index.ts` 注册即可。
+>
+> ⚠️ 已知限制：**智谱按量计费账户没有任何公开的余额/配额 API**（余额只能在控制台查看，社区工具均确认），故未提供「智谱按量」接入方式。
 
 ## 🧰 技术栈
 
@@ -103,7 +105,10 @@ ai-usage-board/
     ├── vendors/              # 厂商目录：每家厂商一个独立文件（含接入方式 + 适配器）
     │   ├── index.ts          # 聚合 VENDORS / VENDOR_MAP / ADAPTERS
     │   ├── deepseek.ts       # DeepSeek · 按量计费
-    │   └── siliconflow.ts    # SiliconFlow · 按量计费
+    │   ├── siliconflow.ts    # SiliconFlow · 按量计费
+    │   ├── moonshot.ts       # Moonshot (Kimi) · 按量余额 + Kimi Code 配额（国内/国际站可选）
+    │   ├── openrouter.ts     # OpenRouter · 按量计费（USD）
+    │   └── zhipu-coding.ts   # 智谱 GLM Coding Plan · 订阅配额 5h/每周（裸 Key，支持个人/团队版）
     └── lib/
         ├── types.ts          # 核心类型：VendorDef / Account / KEEP_SECRET / AccountInput
         ├── store.ts          # 存储层：JSON 读写、密钥脱敏、写队列（无种子数据）

@@ -25,6 +25,10 @@ export interface ConfigField {
   /** 多行文本（cookie / json 授权内容） */
   multiline?: boolean
   required?: boolean
+  /** 下拉选择（如国内/国际站区域） */
+  options?: { value: string; label: string }[]
+  /** 条件显示：仅当 config[key] === value 时该字段才展示并参与必填校验 */
+  dependsOn?: { key: string; value: string }
 }
 
 /** 订阅制限额窗口模板（厂商级） */

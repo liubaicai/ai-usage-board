@@ -33,6 +33,21 @@ function Field({
   const isSavedSecret = field.secret && value === KEEP_SECRET
   const display = isSavedSecret ? "" : value
   const placeholder = isSavedSecret ? "已保存，留空则不修改" : field.placeholder
+  if (field.options) {
+    return (
+      <select
+        className={cn(inputCls, "appearance-none")}
+        value={display}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {field.options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
   if (field.multiline) {
     return (
       <textarea
@@ -73,6 +88,15 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const [config, setConfig] = useState<Record<string, string>>({})
   const [refreshSec, setRefreshSec] = useState<string>("inherit")
 
+  // 新建时给下拉字段（如区域）填默认值
+  const vendorDefaults = (v: (typeof VENDORS)[number]) => {
+    const defaults: Record<string, string> = {}
+    for (const f of v.fields) {
+      if (f.options?.length && !f.secret) defaults[f.key] = f.options[0].value
+    }
+    return defaults
+  }
+
   // 打开时初始化表单
   useEffect(() => {
     if (!open) return
@@ -86,7 +110,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       setVendorId(VENDORS[0].id)
       setLabel("")
       setPlan("")
-      setConfig({})
+      setConfig(vendorDefaults(VENDORS[0]))
       setRefreshSec("inherit")
     }
   }, [open, initial])
@@ -103,7 +127,14 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
 
   const vendor = VENDOR_MAP[vendorId]
   // 必填校验：密钥已保存在后端（哨兵/旧值存在）时允许留空
-  const missingRequired = vendor.fields.some((f) => {
+  // 条件显示：dependsOn 字段仅在满足条件时展示并参与必填校验
+  const visibleFields = vendor.fields.filter(
+    (f) =>
+      !f.dependsOn ||
+      config[f.dependsOn.key] === f.dependsOn.value ||
+      (editing && initial?.config[f.dependsOn.key] === f.dependsOn.value)
+  )
+  const missingRequired = visibleFields.some((f) => {
     if (!f.required) return false
     const v = (config[f.key] ?? "").trim()
     if (v && v !== KEEP_SECRET) return false
@@ -113,9 +144,16 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
 
   const handleSave = () => {
     const sec = refreshSec === "inherit" ? null : Number(refreshSec)
-    // 密钥留空且原本已保存 → 发 KEEP_SECRET，后端保持不变
+    // 密钥留空且原本已保存 → 发 KEEP_SECRET，后端保持不变；
+    // 隐藏字段（dependsOn 不满足）保留旧值，避免切换区域时丢失团队/项目 ID
     const out: Record<string, string> = {}
     for (const f of vendor.fields) {
+      const visible =
+        !f.dependsOn || config[f.dependsOn.key] === f.dependsOn.value
+      if (!visible) {
+        out[f.key] = initial?.config[f.key] ?? ""
+        continue
+      }
       const raw = config[f.key] ?? ""
       if (f.secret && !raw.trim() && editing && initial?.config[f.key]) {
         out[f.key] = KEEP_SECRET
@@ -180,7 +218,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
                     key={v.id}
                     onClick={() => {
                       setVendorId(v.id)
-                      setConfig({})
+                      setConfig(vendorDefaults(v))
                     }}
                     className={cn(
                       "flex flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors",
@@ -226,8 +264,8 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
             </div>
           </div>
 
-          {/* 厂商特定配置字段 */}
-          {vendor.fields.map((f) => (
+          {/* 厂商特定配置字段（dependsOn 条件字段按需展示） */}
+          {visibleFields.map((f) => (
             <div key={f.key}>
               <label className={labelCls}>
                 {f.label}

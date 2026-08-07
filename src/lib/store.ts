@@ -27,7 +27,15 @@ async function load(): Promise<Store> {
     const raw = await fs.readFile(FILE, "utf-8")
     const parsed = JSON.parse(raw) as Store
     if (!Array.isArray(parsed.accounts) || !parsed.settings) throw new Error("bad shape")
-    cache = parsed
+    // 清理已下架厂商的孤儿账号（如厂商被移除后遗留的卡片）
+    const known = parsed.accounts.filter((a) => VENDOR_MAP[a.vendorId])
+    if (known.length !== parsed.accounts.length) {
+      parsed.accounts = known
+      cache = parsed
+      await persist()
+    } else {
+      cache = parsed
+    }
   } catch {
     // 首次运行或文件损坏：空账号列表
     cache = { accounts: [], settings: { globalRefreshSec: 300 } }

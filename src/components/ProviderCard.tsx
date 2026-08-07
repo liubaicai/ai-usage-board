@@ -132,7 +132,8 @@ export function ProviderCard({
         {vendor.name}
       </h3>
       <p className="mt-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-        {vendor.vendor} · {vendor.kind === "subscription" ? "订阅制" : "按量付费"}
+        {vendor.vendor} ·{" "}
+        {p.windows?.length ? "订阅 · 配额" : p.balance ? "按量付费" : vendor.kind === "subscription" ? "订阅制" : "按量付费"}
         {p.label && p.label !== vendor.name && (
           <span className="border border-accent px-1 py-px text-[9px] font-bold tracking-[0.12em] text-accent">
             {p.label}
@@ -147,8 +148,8 @@ export function ProviderCard({
         </p>
       )}
 
-      {/* 主体：订阅 → 限额窗口；按量 → 余额 */}
-      {vendor.kind === "subscription" && p.windows && (
+      {/* 主体：优先按数据形态渲染（配额窗口 / 余额） */}
+      {p.windows && p.windows.length > 0 && (
         <div className="mt-5 space-y-5">
           {p.windows.map((w) => (
             <QuotaBar key={w.id} window={w} />
@@ -156,7 +157,7 @@ export function ProviderCard({
         </div>
       )}
 
-      {vendor.kind === "payg" && p.balance && (
+      {p.balance && (
         <div className="mt-5">
           <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             当前余额

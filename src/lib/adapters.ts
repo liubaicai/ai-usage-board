@@ -17,6 +17,8 @@ export interface FetchResult {
   windows?: QuotaWindow[]
   status?: ProviderStatus
   note?: string
+  /** 套餐等级（如 Coding Plan 的 lite/pro/max） */
+  plan?: string
 }
 
 export type Adapter = (config: Record<string, string>) => Promise<FetchResult>
@@ -36,6 +38,7 @@ export async function fetchAccountUsage(
   const now = Date.now()
   return {
     ...account,
+    plan: result.plan ?? account.plan,
     balance: result.balance ?? account.balance,
     windows: result.windows ?? account.windows,
     status: result.status ?? "ok",
