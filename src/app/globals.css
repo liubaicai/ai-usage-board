@@ -82,6 +82,11 @@
   --radius-md: 0;
   --radius-lg: 0;
   --radius-xl: 0;
+  /* 断点策略：
+     - xs(640px)：横屏手机触发点（iPhone SE 横屏 667px 起），用 4 列紧凑布局利用横向空间
+     - sm(900px)：桌面体验起点，覆盖默认 640px，使横屏手机(<900)仍走紧凑卡片样式 */
+  --breakpoint-xs: 640px;
+  --breakpoint-sm: 900px;
   --font-sans: "Helvetica Neue", Helvetica, "Inter", Arial, "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }

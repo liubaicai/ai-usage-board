@@ -27,3 +27,7 @@ test-results
 # 后端数据文件（含 API Key 等鉴权信息，勿提交）
 data/store.json
 
+# 临时文件（测试截图、headless 浏览器 profile、旧构建缓存）
+.tmp_*
+.next_old_*/
+

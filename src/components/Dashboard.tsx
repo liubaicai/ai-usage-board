@@ -10,7 +10,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core"
 import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable"
-import { Moon, Plus, RefreshCw, Sun } from "lucide-react"
+import { Maximize, Minimize, Moon, Plus, RefreshCw, Sun } from "lucide-react"
 
 import { AccountDialog } from "@/components/AccountDialog"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -39,8 +39,26 @@ function useTheme() {
   return { dark, toggle: () => setDark((v) => !v) }
 }
 
+function useFullscreen() {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener("fullscreenchange", handler)
+    return () => document.removeEventListener("fullscreenchange", handler)
+  }, [])
+  const toggle = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen()
+    } else {
+      void document.documentElement.requestFullscreen().catch(() => {})
+    }
+  }
+  return { isFullscreen, toggle }
+}
+
 export default function Dashboard() {
   const { dark, toggle } = useTheme()
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
   const [accounts, setAccounts] = useState<Account[]>([])
   const [globalRefreshSec, setGlobalRefreshSec] = useState(300)
   const [loaded, setLoaded] = useState(false)
@@ -225,6 +243,14 @@ export default function Dashboard() {
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换明暗模式">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleFullscreen}
+              aria-label={isFullscreen ? "退出全屏" : "全屏"}
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+            </Button>
           </div>
         </div>
       </header>
@@ -257,7 +283,7 @@ export default function Dashboard() {
       </div>
 
       {/* 卡片网格：严格对齐、行内等高，响应式列数；支持拖拽排序 */}
-      <main className="mx-auto max-w-[1600px] px-5 pb-16 pt-6 sm:px-8">
+      <main className="mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6">
         {!loaded && (
           <div className="py-16 text-center text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
             加载中…
@@ -276,7 +302,7 @@ export default function Dashboard() {
         )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={accounts.map((a) => a.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 items-stretch gap-2 xs:grid-cols-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
               {accounts.map((a) => {
                 const vendor = VENDOR_MAP[a.vendorId]
                 if (!vendor) return null
