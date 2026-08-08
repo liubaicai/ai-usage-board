@@ -35,21 +35,18 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=5173
 ENV HOSTNAME=0.0.0.0
 
-# 以非 root 用户运行（uid=1000 匹配多数 Linux 发行版默认首用户）
-RUN addgroup --system --gid 1000 nodejs \
-  && adduser --system --uid 1000 nextjs
-
+# 直接使用 node:20-alpine 自带的 node 用户（uid=1000），匹配 Linux 默认首用户
 # standalone 运行产物（含 server.js 与所需 node_modules）
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/standalone ./
 # 静态资源（standalone 产物不包含 .next/static，需手动复制）
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 # 公开静态资源（如 public/ 目录存在则复制；当前项目未使用）
-# COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# COPY --from=builder --chown=node:node /app/public ./public
 
 # 数据目录：store.json 在此生成，通过 volume 挂载实现持久化
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+RUN mkdir -p /app/data && chown node:node /app/data
 
-USER nextjs
+USER node
 EXPOSE 5173
 
 # 数据卷（docker compose 中挂载宿主 ./data 覆盖）
