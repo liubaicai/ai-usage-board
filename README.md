@@ -1,10 +1,16 @@
+<div align="center">
+
 # ⚡ 能量条 Energy Bar
 
-> 一块牌子上，挂满你所有 AI 订阅的"能量"——剩余用量、限额窗口、账户余额，一眼看完。
+**一块牌子上，挂满你所有 AI 订阅的"能量"——剩余用量、限额窗口、账户余额，一眼看完。**
+
+</div>
 
 **能量条**是一个本地优先的 AI 用量总览面板：把 Codex、Claude Code、GLM、Kimi 这类订阅制的**剩余限额**，与 DeepSeek、OpenRouter、阿里云百炼这类按量付费厂商的**账户余额**，集中展示在一张卡片面板上。支持同厂商多账号、悬浮编辑、全局/单卡两级定时刷新。
 
 界面采用**瑞士国际主义（Swiss International Typographic Style）**设计语言：强网格对齐、Helvetica 系字体、细分割线、黑白灰 + 信号红，支持亮色/暗色双主题。
+
+<div align="center">
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js&logoColor=white)
@@ -12,6 +18,18 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
 ![shadcn/ui](https://img.shields.io/badge/shadcn--ui-style-000000)
+
+</div>
+
+---
+
+## 📸 界面预览
+
+<div align="center">
+  <img src="./docs/screenshot.jpg" alt="能量条 Energy Bar 主界面截图" width="100%" />
+  <br />
+  <sub>主面板：订阅限额、账户余额、刷新倒计时，一屏尽览</sub>
+</div>
 
 ---
 
@@ -85,6 +103,7 @@ ai-usage-board/
 ├── package.json
 ├── tsconfig.json
 ├── LICENSE
+├── docs/                    # 文档与界面截图
 ├── data/                    # 运行期生成：store.json（含密钥，已 gitignore）
 └── src/
     ├── app/
@@ -154,4 +173,8 @@ ai-usage-board/
 
 ---
 
+<div align="center">
+
 *凭据仅存后端 · 用量一目了然* ⚡
+
+</div>
