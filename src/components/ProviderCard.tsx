@@ -238,7 +238,7 @@ export function ProviderCard({
           </div>
           {(p.balance.granted !== undefined || p.balance.totalBalance !== undefined) && (
             <dl className="mt-3 space-y-1 border-t border-border pt-3 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              {p.balance.granted !== undefined && (
+              {p.balance.granted !== undefined && p.balance.granted > 0 && (
                 <div className="flex justify-between">
                   <dt>赠送额度</dt>
                   <dd className="tabular-nums">

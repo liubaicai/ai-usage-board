@@ -56,7 +56,7 @@ function getAgent(proxy: string): Agent {
 type FetchInit = {
   method?: string
   headers?: Record<string, string>
-  body?: string
+  body?: string | Buffer
   signal?: AbortSignal
 }
 
@@ -173,6 +173,32 @@ export async function postJson(
       throw new Error(`HTTP ${res.status}${text ? ` ${text.slice(0, 200)}` : ""}`)
     }
     return await res.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** POST 二进制（protobuf 等）并返回二进制响应，支持代理 */
+export async function postBinary(
+  url: string,
+  body: Buffer,
+  headers: Record<string, string> = {}
+): Promise<Buffer> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const res = await proxyFetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/proto", ...headers },
+      body,
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`HTTP ${res.status}${text ? ` ${text.slice(0, 200)}` : ""}`)
+    }
+    const buf = await res.arrayBuffer()
+    return Buffer.from(buf)
   } finally {
     clearTimeout(timer)
   }
