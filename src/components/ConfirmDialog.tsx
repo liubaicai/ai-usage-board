@@ -39,7 +39,7 @@ export function ConfirmDialog({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm border-2 border-foreground bg-background"
+        className="w-full max-w-sm border-2 border-foreground bg-popover"
         onClick={(e) => e.stopPropagation()}
         role="alertdialog"
         aria-modal="true"

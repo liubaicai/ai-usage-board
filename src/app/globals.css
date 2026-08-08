@@ -31,26 +31,31 @@
   --radius: 0rem;
 }
 
+/*
+ * 暗色：炭灰分层 + 柔和米白
+ * - 背景 #171715 抬起不死黑；卡片 #232321 / 悬浮 #2d2d2a 逐层浮起
+ * - 前景 #d3d3cd（约 83% 米白）替代近纯白，大数字与粗线不再刺眼（对比度约 11:1）
+ */
 .dark {
-  --background: #0e0e0c;
-  --foreground: #f2f2ec;
-  --card: #0e0e0c;
-  --card-foreground: #f2f2ec;
-  --popover: #161613;
-  --popover-foreground: #f2f2ec;
-  --primary: #f2f2ec;
-  --primary-foreground: #0e0e0c;
-  --secondary: #1c1c18;
-  --secondary-foreground: #f2f2ec;
-  --muted: #1c1c18;
-  --muted-foreground: #8a8a80;
+  --background: #171715;
+  --foreground: #d3d3cd;
+  --card: #232321;
+  --card-foreground: #d3d3cd;
+  --popover: #232321;
+  --popover-foreground: #d3d3cd;
+  --primary: #d3d3cd;
+  --primary-foreground: #171715;
+  --secondary: #2d2d2a;
+  --secondary-foreground: #d3d3cd;
+  --muted: #2d2d2a;
+  --muted-foreground: #93938b;
   --accent: #ff3b30;
-  --accent-foreground: #0e0e0c;
+  --accent-foreground: #171715;
   --destructive: #ff3b30;
-  --destructive-foreground: #0e0e0c;
-  --border: #2a2a25;
-  --input: #2a2a25;
-  --ring: #f2f2ec;
+  --destructive-foreground: #171715;
+  --border: #383834;
+  --input: #383834;
+  --ring: #d3d3cd;
 }
 
 @theme inline {

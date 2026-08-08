@@ -91,7 +91,7 @@ function StatusMark({ status }: { status: Account["status"] }) {
   return (
     <span className="relative inline-block h-2 w-2">
       <span className="absolute inset-0 bg-accent" />
-      <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-background" />
+      <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-card" />
     </span>
   )
 }
@@ -158,7 +158,7 @@ export function ProviderCard({
         touchAction: "none",
       }}
       className={cn(
-        "group relative flex h-full cursor-grab flex-col border border-border border-t-2 border-t-foreground bg-background px-5 py-5 transition-colors hover:border-foreground/60 hover:border-t-foreground active:cursor-grabbing",
+        "group relative flex h-full cursor-grab flex-col border border-border border-t-2 border-t-foreground bg-card px-5 py-5 transition-colors hover:border-foreground/60 hover:border-t-foreground active:cursor-grabbing",
         isDragging &&
           "z-50 border-foreground opacity-70 shadow-[0_0_0_1px_var(--foreground)]",
         p.status === "error" && "border-accent border-t-accent"

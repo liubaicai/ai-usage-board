@@ -276,7 +276,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       onClick={onClose}
     >
       <div
-        className="flex max-h-[85vh] w-full max-w-xl flex-col border-2 border-foreground bg-background"
+        className="flex max-h-[85vh] w-full max-w-xl flex-col border-2 border-foreground bg-popover"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
