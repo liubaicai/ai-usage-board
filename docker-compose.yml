@@ -13,3 +13,8 @@ services:
     environment:
       - NODE_ENV=production
       # - TZ=Asia/Shanghai   # 如需要可指定容器时区
+
+    # 容器内用户 uid=1000，如宿主机 ./data 属主不是 1000 则需覆盖。
+    # 方法一（推荐）：sudo chown -R 1000:1000 ./data
+    # 方法二：取消下面注释并填入宿主机用户的 uid:gid（id -u && id -g 查看）
+    # user: "1000:1000"

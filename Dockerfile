@@ -35,9 +35,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=5173
 ENV HOSTNAME=0.0.0.0
 
-# 以非 root 用户运行（Node 安全实践）
-RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+# 以非 root 用户运行（uid=1000 匹配多数 Linux 发行版默认首用户）
+RUN addgroup --system --gid 1000 nodejs \
+  && adduser --system --uid 1000 nextjs
 
 # standalone 运行产物（含 server.js 与所需 node_modules）
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

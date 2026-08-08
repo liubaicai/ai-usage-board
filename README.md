@@ -135,7 +135,7 @@ docker compose -f docker-compose.dev.yml down
 
 - 访问地址：`http://127.0.0.1:5173`（compose 文件中 `ports` 左侧可改宿主端口）
 - **数据持久化**：`data/` 目录通过 volume 挂载到宿主机，`store.json`（含全部账号配置与 API Key）不随容器销毁丢失；`data/` 已被 `.dockerignore` 排除，不会进入镜像
-- **运行身份**：镜像内以非 root 用户（`nextjs`）运行；Linux 下若遇 `./data` 写权限问题，执行 `chown -R 1001:1001 ./data`
+- **运行身份**：镜像内以非 root 用户（`nextjs`，uid=1000）运行；若遇 `EACCES: permission denied` 写 `/app/data/store.json` 报错，执行 `sudo chown -R 1000:1000 ./data` 或在 `docker-compose.yml` 中取消 `user:` 注释并填入你的 uid:gid（`id -u && id -g` 查看）
 - **镜像更新**：`docker compose pull && docker compose up -d` 拉取最新镜像；旧镜像可用 `docker image prune` 清理
 - **自定义镜像**：GitHub Actions 工作流位于 `.github/workflows/docker-publish.yml`，推送后自动触发
 
