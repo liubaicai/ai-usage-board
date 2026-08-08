@@ -1,0 +1,17 @@
+services:
+  ai-usage-board:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-usage-board:latest
+    container_name: ai-usage-board
+    restart: unless-stopped
+    ports:
+      # 宿主机端口:容器内端口（如需修改外部访问端口，改左侧即可）
+      - "5173:5173"
+    volumes:
+      # 数据持久化：store.json（含所有账号配置与 API Key）保存在宿主机 ./data
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      # - TZ=Asia/Shanghai   # 如需要可指定容器时区

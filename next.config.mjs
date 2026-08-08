@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // 仅在 Docker 构建时启用 standalone 产物（Dockerfile builder 阶段设置 NEXT_OUTPUT=standalone），
+  // 本地 dev / build 保持默认输出，避免相互影响
+  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // 客户端 bundle 只使用厂商的「数据定义」（VendorDef），从不执行请求逻辑。

@@ -81,6 +81,46 @@ npm run start
 
 > 首次启动会自动生成数据文件 `data/store.json`（空账号列表 + 默认全局设置，**不会**提交到仓库）。所有账号配置与 API Key 都存放在该文件中。
 
+## 🐳 Docker 部署（推荐）
+
+项目已内置多阶段 `Dockerfile`（依赖 → 构建 → 精简运行镜像，基于 standalone 产物）与 `docker-compose.yml`。
+
+**方式一：Docker Compose（推荐）**
+
+```bash
+# 构建并启动（首次构建需几分钟，后续秒级）
+docker compose up -d --build
+
+# 查看日志
+docker compose logs -f
+
+# 停止
+docker compose down
+
+# 停止并同时删除镜像（容器内数据不受影响，保留在宿主机 ./data）
+docker compose down --rmi all
+```
+
+**方式二：纯 Docker 命令**
+
+```bash
+docker build -t ai-usage-board .
+docker run -d --name ai-usage-board \
+  -p 5173:5173 \
+  -v "$(pwd)/data:/app/data" \
+  --restart unless-stopped \
+  ai-usage-board
+```
+
+**要点说明**
+
+- 访问地址：`http://127.0.0.1:5173`（`docker-compose.yml` 中 `ports` 左侧可改宿主端口）
+- **数据持久化**：`data/` 目录通过 volume 挂载到宿主机，`store.json`（含全部账号配置与 API Key）不随容器销毁丢失；`data/` 已被 `.dockerignore` 排除，不会进入镜像
+- **运行身份**：镜像内以非 root 用户（`nextjs`）运行；Linux 下若遇 `./data` 写权限问题，执行 `chown -R 1001:1001 ./data`
+- **镜像更新**：代码有改动时重新执行 `docker compose up -d --build` 即可；旧镜像可用 `docker image prune` 清理
+
+> ⚠️ 若在 `next.config.mjs` 中移除 `output: "standalone"`，本 Dockerfile 将无法工作（运行阶段依赖 standalone 产物 `server.js`）。
+
 ## 📖 使用方法
 
 1. **新增接入**：点击报头右上角「+ 新增接入」→ 在九宫格中选择供应商 → 按提示填写凭据与昵称 → 添加。
@@ -97,8 +137,11 @@ npm run start
 
 ```
 ai-usage-board/
+├── Dockerfile               # 多阶段构建（deps → build → runner，standalone 精简产物）
+├── docker-compose.yml       # 一键编排：端口映射 + data 数据卷持久化
+├── .dockerignore            # 构建上下文排除（node_modules / .next / data 密钥等）
 ├── components.json          # shadcn/ui 配置（别名、样式、CSS 变量）
-├── next.config.mjs          # Next.js 配置
+├── next.config.mjs          # Next.js 配置（output: standalone + 客户端 Node 模块 stub）
 ├── postcss.config.mjs       # Tailwind v4 PostCSS 插件
 ├── package.json
 ├── tsconfig.json
