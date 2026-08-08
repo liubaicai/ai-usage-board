@@ -54,6 +54,7 @@ export const apiClient = {
     api<{
       status: "ok" | "pending" | "expired"
       error?: string
+      interval?: number
       tokens?: { access_token: string; refresh_token?: string; account_id?: string }
     }>("/api/oauth/codex", {
       method: "POST",
@@ -76,6 +77,7 @@ export const apiClient = {
     api<{
       status: "ok" | "pending" | "expired"
       error?: string
+      interval?: number
       githubToken?: string
     }>("/api/oauth/copilot", {
       method: "POST",

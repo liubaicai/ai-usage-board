@@ -29,12 +29,24 @@ export async function POST(req: Request) {
           }),
           { Accept: "application/json" }
         )
+        // 诊断日志：授权后轮询的真实响应
+        console.log(
+          "[oauth/copilot] poll device=",
+          String(body.deviceCode).slice(0, 8),
+          "->",
+          JSON.stringify(r.data).slice(0, 300)
+        )
         if (r.data.access_token) {
           return NextResponse.json({ status: "ok", githubToken: r.data.access_token })
         }
         const err = String(r.data.error ?? "")
         if (err === "authorization_pending" || err === "slow_down") {
-          return NextResponse.json({ status: "pending" })
+          // GitHub 的 slow_down 响应会带建议的 interval（10/15/20...），透传给前端动态调整
+          const nextInterval = Number(r.data.interval)
+          return NextResponse.json({
+            status: "pending",
+            interval: Number.isFinite(nextInterval) && nextInterval > 0 ? nextInterval : undefined,
+          })
         }
         return NextResponse.json({ status: "expired", error: err || "未知错误" })
       }

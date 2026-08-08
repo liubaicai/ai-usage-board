@@ -3,8 +3,9 @@ import type { Adapter, FetchResult } from "@/lib/adapters"
 import type { QuotaWindow, VendorDef } from "@/lib/types"
 
 /**
- * Windsurf（Codeium）· 订阅制（credits 制）
- * 接入方式：API Key（sk-ws-01-...，来自 Windsurf 登录后 SQLite 的 windsurfAuthStatus）
+ * Windsurf（Devin Desktop）· 订阅制（credits 制）
+ * 原 Windsurf 已于 2026-06 改名为 Devin Desktop（同属 Cognition/Codeium 后端），API Key 与接口不变。
+ * 接入方式：API Key（sk-ws-01-...，来自 Windsurf/Devin Desktop 登录后 SQLite 的 windsurfAuthStatus）
  * 接口（cloud fallback）：POST server.codeium.com/exa.seat_management_pb.SeatManagementService/GetUserStatus
  *   body: { metadata: { apiKey, ideName: "windsurf", ideVersion: "0.0.0", extensionName: "windsurf", extensionVersion: "0.0.0", locale: "en" } }
  *   Headers: Connect-Protocol-Version: 1
@@ -12,7 +13,7 @@ import type { QuotaWindow, VendorDef } from "@/lib/types"
  */
 export const windsurf: VendorDef = {
   id: "windsurf",
-  name: "Windsurf",
+  name: "Windsurf（Devin）",
   vendor: "Codeium",
   kind: "subscription",
   authType: "apikey",

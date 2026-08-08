@@ -140,15 +140,20 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
-  // OAuth 设备授权：轮询授权结果，成功后把凭证写入 content（codex → auth.json 形态；copilot → GitHub token）
+  // OAuth 设备授权：轮询授权结果（动态间隔——GitHub slow_down 时会要求递增等待），
+  // 成功后把凭证写入 content（codex → auth.json 形态；copilot → GitHub token）
   useEffect(() => {
     if (!open || !oauthFlow || oauthDone) return
-    const timer = setInterval(async () => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const tick = async () => {
+      let nextMs = (oauthFlow.interval || 5) * 1000
       try {
         const r =
           oauthFlow.flow === "copilot"
             ? await apiClient.oauthCopilotPoll(oauthFlow.deviceCode, proxy)
             : await apiClient.oauthCodexPoll(oauthFlow.deviceCode, proxy)
+        if (cancelled) return
         if (r.status === "ok") {
           setConfig((c) => ({
             ...c,
@@ -168,15 +173,32 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
           }))
           setOauthDone(true)
           setOauthFlow(null)
-        } else if (r.status === "expired") {
+          return
+        }
+        if (r.status === "expired") {
           setOauthError("授权已过期，请重新开始")
           setOauthFlow(null)
+          return
         }
-      } catch {
-        // 网络/服务端瞬时错误，继续轮询
+        // pending：采用服务端建议的间隔（GitHub slow_down 会返回递增 interval）
+        if (typeof r.interval === "number" && r.interval > 0) {
+          nextMs = r.interval * 1000
+        }
+      } catch (e) {
+        // 网络/服务端瞬时错误，继续轮询；记录首个错误便于排查
+        setOauthError((prev) =>
+          prev || (e instanceof Error ? `授权轮询出错：${e.message}` : "授权轮询出错")
+        )
       }
-    }, (oauthFlow.interval || 5) * 1000)
-    return () => clearInterval(timer)
+      if (!cancelled) {
+        timer = setTimeout(tick, nextMs)
+      }
+    }
+    timer = setTimeout(tick, (oauthFlow.interval || 5) * 1000)
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
   }, [open, oauthFlow, oauthDone, proxy])
 
   const startOauth = async () => {

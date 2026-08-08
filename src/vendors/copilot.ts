@@ -1,4 +1,4 @@
-import { httpGetJson } from "@/lib/http"
+import { httpGetJson, postJson } from "@/lib/http"
 import type { Adapter, FetchResult } from "@/lib/adapters"
 import type { QuotaWindow, VendorDef } from "@/lib/types"
 
@@ -32,9 +32,10 @@ export const copilot: VendorDef = {
     {
       key: "content",
       label: "GitHub Token",
-      placeholder: "OAuth 方式请用下方按钮授权；PAT 方式请填 ghp_/github_pat_ 开头的令牌",
+      placeholder: "填 Fine-grained PAT（ghp_/github_pat_ 开头）；设备授权方式无需填写",
       secret: true,
-      dependsOn: { key: "authMethod", values: ["device-flow", "pat"] },
+      // 仅 PAT 方式显示输入框；设备授权用下方按钮完成（自动写入）
+      dependsOn: { key: "authMethod", value: "pat" },
     },
   ],
 }
@@ -42,17 +43,33 @@ export const copilot: VendorDef = {
 const GH_API = "https://api.github.com"
 const UA = "GitHubCopilotChat/0.35.0"
 
-/** GitHub OAuth token → Copilot 会话 token */
+/** GitHub OAuth token → Copilot 会话 token（先 GET，失败回退 POST） */
 async function exchangeCopilotToken(githubToken: string): Promise<string> {
-  const data = (await httpGetJson(`${GH_API}/copilot_internal/v2/token`, {
-    Authorization: `token ${githubToken}`,
+  const baseHeaders = {
     Accept: "application/json",
     "User-Agent": UA,
     "Editor-Version": "vscode/1.107.0",
     "Editor-Plugin-Version": "copilot-chat/0.35.0",
     "Copilot-Integration-Id": "vscode-chat",
+  }
+  try {
+    const data = (await httpGetJson(`${GH_API}/copilot_internal/v2/token`, {
+      ...baseHeaders,
+      Authorization: `token ${githubToken}`,
+    })) as { token?: string }
+    if (data.token) return data.token
+  } catch {
+    // GET 失败 → 尝试 POST（部分客户端实现用 POST）
+  }
+  const data = (await postJson(`${GH_API}/copilot_internal/v2/token`, {}, {
+    ...baseHeaders,
+    Authorization: `Bearer ${githubToken}`,
   })) as { token?: string }
-  if (!data.token) throw new Error("交换 Copilot token 失败：响应缺少 token")
+  if (!data.token) {
+    throw new Error(
+      "交换 Copilot token 失败（GET/POST 均未返回 token）。请检查 GitHub token 是否有效，或改用 Fine-grained PAT 方式"
+    )
+  }
   return data.token
 }
 
@@ -151,14 +168,25 @@ export const adapter: Adapter = async (config) => {
   }
   if (!githubToken) throw new Error("GitHub token 无效")
   const copilotToken = await exchangeCopilotToken(githubToken)
-  const quota = (await httpGetJson(`${GH_API}/copilot_internal/user`, {
-    Authorization: `Bearer ${copilotToken}`,
-    Accept: "application/json",
-    "User-Agent": UA,
-    "Editor-Version": "vscode/1.107.0",
-    "Editor-Plugin-Version": "copilot-chat/0.35.0",
-    "Copilot-Integration-Id": "vscode-chat",
-  })) as Record<string, unknown>
+  let quota: Record<string, unknown>
+  try {
+    quota = (await httpGetJson(`${GH_API}/copilot_internal/user`, {
+      Authorization: `Bearer ${copilotToken}`,
+      Accept: "application/json",
+      "User-Agent": UA,
+      "Editor-Version": "vscode/1.107.0",
+      "Editor-Plugin-Version": "copilot-chat/0.35.0",
+      "Copilot-Integration-Id": "vscode-chat",
+    })) as Record<string, unknown>
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ""
+    if (msg.includes("HTTP 401")) {
+      throw new Error(
+        "HTTP 401：该 GitHub 账号未订阅 GitHub Copilot（配额接口仅对已订阅账号开放）。请先在 github.com/settings/billing 订阅 Copilot Pro / Business 后重试"
+      )
+    }
+    throw e
+  }
   const { windows, plan } = parseQuotaSnapshots(quota)
   if (!windows.length) {
     throw new Error(`响应缺少配额数据：${JSON.stringify(quota).slice(0, 150)}`)
