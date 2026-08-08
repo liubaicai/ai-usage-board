@@ -1,0 +1,20 @@
+# 开发模式：使用当前目录的 Dockerfile 本地构建镜像
+# 用法：docker compose -f docker-compose.dev.yml up -d --build
+# 用法（重建）：docker compose -f docker-compose.dev.yml up -d --build --force-recreate
+# 停止：docker compose -f docker-compose.dev.yml down
+services:
+  ai-usage-board:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-usage-board:dev
+    container_name: ai-usage-board
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      # 数据持久化：store.json（含所有账号配置与 API Key）保存在宿主机 ./data
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      # - TZ=Asia/Shanghai   # 如需要可指定容器时区

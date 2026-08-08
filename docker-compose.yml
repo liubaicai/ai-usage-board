@@ -1,9 +1,7 @@
 services:
   ai-usage-board:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ai-usage-board:latest
+    # 直接拉取 GHCR 现成镜像（由 GitHub Actions 在每次 push 后自动构建推送）
+    image: ghcr.io/liubaicai/ai-usage-board:latest
     container_name: ai-usage-board
     restart: unless-stopped
     ports:

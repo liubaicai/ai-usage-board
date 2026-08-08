@@ -83,41 +83,61 @@ npm run start
 
 ## 🐳 Docker 部署（推荐）
 
-项目已内置多阶段 `Dockerfile`（依赖 → 构建 → 精简运行镜像，基于 standalone 产物）与 `docker-compose.yml`。
+项目通过 **GitHub Actions 持续构建**：每次 push 到 `master` 后自动构建镜像并推送至 **GHCR（ghcr.io/liubaicai/ai-usage-board）**，多架构（AMD64 + ARM64），标签 `latest` / `sha-<短sha>` / 版本号。
 
-**方式一：Docker Compose（推荐）**
+### 方式一：Docker Compose（无需下载项目）
+
+只需下载 `docker-compose.yml` 一个文件，直接拉取现成镜像运行：
 
 ```bash
-# 构建并启动（首次构建需几分钟，后续秒级）
-docker compose up -d --build
+# 1. 下载 compose 文件（到任意目录）
+curl -O https://raw.githubusercontent.com/liubaicai/ai-usage-board/master/docker-compose.yml
+
+# 2. 启动（首次会自动拉取 ghcr.io 镜像）
+docker compose up -d
 
 # 查看日志
 docker compose logs -f
 
+# 更新到最新镜像
+docker compose pull && docker compose up -d
+
 # 停止
 docker compose down
-
-# 停止并同时删除镜像（容器内数据不受影响，保留在宿主机 ./data）
-docker compose down --rmi all
 ```
 
-**方式二：纯 Docker 命令**
+### 方式二：纯 Docker 命令（现成镜像）
 
 ```bash
-docker build -t ai-usage-board .
 docker run -d --name ai-usage-board \
   -p 5173:5173 \
   -v "$(pwd)/data:/app/data" \
   --restart unless-stopped \
-  ai-usage-board
+  ghcr.io/liubaicai/ai-usage-board:latest
+```
+
+### 方式三：本地构建运行（开发模式）
+
+需要源码目录，用当前目录的 `Dockerfile` 本地构建（不依赖远程镜像）：
+
+```bash
+# 在项目根目录
+docker compose -f docker-compose.dev.yml up -d --build
+
+# 代码有改动后重建
+docker compose -f docker-compose.dev.yml up -d --build --force-recreate
+
+# 停止
+docker compose -f docker-compose.dev.yml down
 ```
 
 **要点说明**
 
-- 访问地址：`http://127.0.0.1:5173`（`docker-compose.yml` 中 `ports` 左侧可改宿主端口）
+- 访问地址：`http://127.0.0.1:5173`（compose 文件中 `ports` 左侧可改宿主端口）
 - **数据持久化**：`data/` 目录通过 volume 挂载到宿主机，`store.json`（含全部账号配置与 API Key）不随容器销毁丢失；`data/` 已被 `.dockerignore` 排除，不会进入镜像
 - **运行身份**：镜像内以非 root 用户（`nextjs`）运行；Linux 下若遇 `./data` 写权限问题，执行 `chown -R 1001:1001 ./data`
-- **镜像更新**：代码有改动时重新执行 `docker compose up -d --build` 即可；旧镜像可用 `docker image prune` 清理
+- **镜像更新**：`docker compose pull && docker compose up -d` 拉取最新镜像；旧镜像可用 `docker image prune` 清理
+- **自定义镜像**：GitHub Actions 工作流位于 `.github/workflows/docker-publish.yml`，推送后自动触发
 
 > ⚠️ 若在 `next.config.mjs` 中移除 `output: "standalone"`，本 Dockerfile 将无法工作（运行阶段依赖 standalone 产物 `server.js`）。
 
@@ -137,11 +157,14 @@ docker run -d --name ai-usage-board \
 
 ```
 ai-usage-board/
+├── .github/workflows/       # GitHub Actions：push 后自动构建镜像并推送 ghcr.io
+│   └── docker-publish.yml
 ├── Dockerfile               # 多阶段构建（deps → build → runner，standalone 精简产物）
-├── docker-compose.yml       # 一键编排：端口映射 + data 数据卷持久化
+├── docker-compose.yml       # 生产编排：直接拉取 ghcr.io 现成镜像
+├── docker-compose.dev.yml   # 开发编排：使用当前目录 Dockerfile 本地构建
 ├── .dockerignore            # 构建上下文排除（node_modules / .next / data 密钥等）
 ├── components.json          # shadcn/ui 配置（别名、样式、CSS 变量）
-├── next.config.mjs          # Next.js 配置（output: standalone + 客户端 Node 模块 stub）
+├── next.config.mjs          # Next.js 配置（NEXT_OUTPUT=standalone 时启用 standalone + 客户端 Node 模块 stub）
 ├── postcss.config.mjs       # Tailwind v4 PostCSS 插件
 ├── package.json
 ├── tsconfig.json
