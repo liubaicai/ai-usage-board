@@ -27,9 +27,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -62,8 +59,8 @@ jobs:
         with:
           context: .
           push: true
-          # 多架构：AMD64 + ARM64
-          platforms: linux/amd64,linux/arm64
+          # 单架构 AMD64（ARM64 的 npm ci 在 QEMU 下会 hang，暂无需求不折腾）
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # 跨构建缓存加速

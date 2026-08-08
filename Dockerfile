@@ -8,7 +8,7 @@ WORKDIR /app
 
 # 利用 layer 缓存：仅当 package.json / lockfile 变更时才重新 npm ci
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 # ============================================================
 # 阶段 2：构建
