@@ -72,6 +72,8 @@ export function maskAccount(acc: Account, vendor?: VendorDef): Account {
     const v = acc.config[f.key]
     config[f.key] = f.secret && v ? KEEP_SECRET : (v ?? "")
   }
+  // 保留非厂商封装的通用字段（proxy 等非密钥类额外配置，不需 mask）
+  if (acc.config.proxy) config.proxy = acc.config.proxy
   return { ...acc, config }
 }
 
@@ -94,6 +96,8 @@ export function resolveConfig(
       out[f.key] = v
     }
   }
+  // 保留非厂商封装的通用字段（proxy 等，不参与 mask/sentinel 逻辑）
+  out.proxy = incoming.proxy ?? existing.proxy ?? ""
   return out
 }
 
