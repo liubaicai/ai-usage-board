@@ -228,7 +228,8 @@ export function ProviderCard({
           <div
             className={cn(
               "mt-1 text-4xl font-bold leading-none tracking-tighter tabular-nums",
-              p.balance.amount < 20 && "text-accent"
+              p.balance.amount < (vendor.id === "openrouter" || vendor.id === "relay" ? 10 : 20) &&
+                "text-accent"
             )}
           >
             <span className="mr-1 align-top text-lg font-medium">
@@ -236,7 +237,10 @@ export function ProviderCard({
             </span>
             {p.balance.amount.toFixed(2)}
           </div>
-          {(p.balance.granted !== undefined || p.balance.totalBalance !== undefined) && (
+          {/* 明细：赠送额度 / 合计。合计只在数值与当前余额不同时才显示（无赠送时重复） */}
+          {(p.balance.granted !== undefined && p.balance.granted > 0) ||
+          (p.balance.totalBalance !== undefined &&
+            Math.abs(p.balance.totalBalance - p.balance.amount) > 0.005) ? (
             <dl className="mt-3 space-y-1 border-t border-border pt-3 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
               {p.balance.granted !== undefined && p.balance.granted > 0 && (
                 <div className="flex justify-between">
@@ -247,17 +251,18 @@ export function ProviderCard({
                   </dd>
                 </div>
               )}
-              {p.balance.totalBalance !== undefined && (
-                <div className="flex justify-between">
-                  <dt>合计</dt>
-                  <dd className="tabular-nums text-foreground">
-                    {p.balance.currency === "CNY" ? "¥" : "$"}
-                    {p.balance.totalBalance.toFixed(2)}
-                  </dd>
-                </div>
-              )}
+              {p.balance.totalBalance !== undefined &&
+                Math.abs(p.balance.totalBalance - p.balance.amount) > 0.005 && (
+                  <div className="flex justify-between">
+                    <dt>合计</dt>
+                    <dd className="tabular-nums text-foreground">
+                      {p.balance.currency === "CNY" ? "¥" : "$"}
+                      {p.balance.totalBalance.toFixed(2)}
+                    </dd>
+                  </div>
+                )}
             </dl>
-          )}
+          ) : null}
         </div>
       )}
 

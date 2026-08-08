@@ -12,6 +12,7 @@ import { adapter as minimaxAdapter, minimax } from "./minimax"
 import { adapter as moonshotAdapter, moonshot } from "./moonshot"
 import { adapter as opencodeAdapter, opencode } from "./opencode"
 import { adapter as openrouterAdapter, openrouter } from "./openrouter"
+import { adapter as relayAdapter, relay } from "./relay"
 import { adapter as siliconflowAdapter, siliconflow } from "./siliconflow"
 import { adapter as windsurfAdapter, windsurf } from "./windsurf"
 import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
@@ -38,6 +39,7 @@ export const VENDORS: VendorDef[] = [
   moonshot,
   openrouter,
   zhipuCoding,
+  relay,
 ]
 
 export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
@@ -59,5 +61,6 @@ export const ADAPTERS: Record<string, Adapter> = {
   [siliconflow.id]: siliconflowAdapter,
   [moonshot.id]: moonshotAdapter,
   [openrouter.id]: openrouterAdapter,
+  [relay.id]: relayAdapter,
   [zhipuCoding.id]: zhipuCodingAdapter,
 }
