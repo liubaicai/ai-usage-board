@@ -17,6 +17,7 @@ export const codex: VendorDef = {
   vendor: "OpenAI",
   kind: "subscription",
   authType: "oauth",
+  oauthFlow: "codex",
   windowTemplates: [
     { id: "codex-5h", label: "5 小时限额" },
     { id: "codex-weekly", label: "每周限额" },

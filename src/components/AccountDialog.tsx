@@ -87,9 +87,11 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const [label, setLabel] = useState("")
   const [plan, setPlan] = useState("")
   const [config, setConfig] = useState<Record<string, string>>({})
+  const [proxy, setProxy] = useState("")
   const [refreshSec, setRefreshSec] = useState<string>("inherit")
-  // Codex OAuth 设备授权状态
+  // OAuth 设备授权状态（codex / copilot 通用）
   const [oauthFlow, setOauthFlow] = useState<{
+    flow: "codex" | "copilot"
     deviceCode: string
     userCode: string
     verificationUri: string
@@ -118,12 +120,14 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       setLabel(initial.label)
       setPlan(initial.plan ?? "")
       setConfig({ ...initial.config })
+      setProxy(initial.config.proxy ?? "")
       setRefreshSec(initial.refreshSec === null ? "inherit" : String(initial.refreshSec))
     } else {
       setVendorId(VENDORS[0].id)
       setLabel("")
       setPlan("")
       setConfig(vendorDefaults(VENDORS[0]))
+      setProxy("")
       setRefreshSec("inherit")
     }
   }, [open, initial])
@@ -136,22 +140,31 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
     return () => window.removeEventListener("keydown", onKey)
   }, [open, onClose])
 
-  // OAuth 设备授权：轮询授权结果，成功后把凭证写入 content（auth.json 形态）
+  // OAuth 设备授权：轮询授权结果，成功后把凭证写入 content（codex → auth.json 形态；copilot → GitHub token）
   useEffect(() => {
     if (!open || !oauthFlow || oauthDone) return
     const timer = setInterval(async () => {
       try {
-        const r = await apiClient.oauthCodexPoll(oauthFlow.deviceCode)
-        if (r.status === "ok" && r.tokens) {
+        const r =
+          oauthFlow.flow === "copilot"
+            ? await apiClient.oauthCopilotPoll(oauthFlow.deviceCode, proxy)
+            : await apiClient.oauthCodexPoll(oauthFlow.deviceCode, proxy)
+        if (r.status === "ok") {
           setConfig((c) => ({
             ...c,
-            content: JSON.stringify({
-              tokens: {
-                access_token: r.tokens!.access_token,
-                refresh_token: r.tokens!.refresh_token,
-                account_id: r.tokens!.account_id,
-              },
-            }),
+            content:
+              oauthFlow.flow === "copilot"
+                ? JSON.stringify({ githubToken: (r as { githubToken?: string }).githubToken })
+                : JSON.stringify({
+                    tokens: {
+                      access_token: (r as { tokens?: { access_token: string } }).tokens
+                        ?.access_token,
+                      refresh_token: (r as { tokens?: { refresh_token?: string } }).tokens
+                        ?.refresh_token,
+                      account_id: (r as { tokens?: { account_id?: string } }).tokens
+                        ?.account_id,
+                    },
+                  }),
           }))
           setOauthDone(true)
           setOauthFlow(null)
@@ -164,13 +177,18 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       }
     }, (oauthFlow.interval || 5) * 1000)
     return () => clearInterval(timer)
-  }, [open, oauthFlow, oauthDone])
+  }, [open, oauthFlow, oauthDone, proxy])
 
   const startOauth = async () => {
     setOauthError("")
     try {
-      const r = await apiClient.oauthCodexStart()
+      const flow = vendorId === "copilot" ? "copilot" : "codex"
+      const r =
+        flow === "copilot"
+          ? await apiClient.oauthCopilotStart(proxy)
+          : await apiClient.oauthCodexStart(proxy)
       setOauthFlow({
+        flow,
         deviceCode: r.device_code,
         userCode: r.user_code,
         verificationUri: r.verification_uri,
@@ -218,6 +236,8 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
         out[f.key] = raw
       }
     }
+    // 代理地址（可选）：所有厂商通用，不参与厂商字段的密钥哨兵逻辑
+    out.proxy = proxy.trim()
     onSave({
       vendorId,
       label: label.trim() || vendor.name,
@@ -336,8 +356,25 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
             </div>
           ))}
 
-          {/* Codex OAuth 设备授权面板 */}
-          {vendor.id === "codex" && config.authMethod === "oauth" && (
+          {/* 代理地址（可选）：所有接入通用，填写后该接入的请求全部走代理 */}
+          <div>
+            <label className={labelCls}>代理（可选）</label>
+            <input
+              className={inputCls}
+              placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:1080（留空直连）"
+              value={proxy}
+              onChange={(e) => setProxy(e.target.value)}
+              spellCheck={false}
+              autoComplete="off"
+            />
+            <p className="mt-1.5 text-[10px] tracking-[0.08em] text-muted-foreground">
+              该接入的厂商请求（含 token 自动刷新）将通过此代理发出，支持 HTTP / SOCKS4 / SOCKS5。
+            </p>
+          </div>
+
+          {/* OAuth 设备授权面板（Codex / GitHub Copilot） */}
+          {(vendor.oauthFlow === "codex" && config.authMethod === "oauth") ||
+            (vendor.oauthFlow === "copilot" && config.authMethod === "device-flow") ? (
             <div>
               <span className={labelCls}>OAuth 设备授权</span>
               {oauthDone ? (
@@ -380,7 +417,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
                 <p className="mt-1.5 text-[10px] tracking-[0.08em] text-accent">{oauthError}</p>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* 单卡刷新间隔 */}
           <div>

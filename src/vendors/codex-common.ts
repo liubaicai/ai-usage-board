@@ -1,4 +1,4 @@
-import { httpGetJson } from "@/lib/http"
+import { httpGetJson, postForm } from "@/lib/http"
 import type { Adapter, FetchResult } from "@/lib/adapters"
 import type { Balance, QuotaWindow } from "@/lib/types"
 
@@ -280,20 +280,12 @@ async function refreshCodexToken(
     client_id: CLIENT_ID,
     refresh_token: refreshToken,
   })
-  const res = await fetch("https://auth.openai.com/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  })
-  if (!res.ok) throw new Error(`Token 刷新失败：HTTP ${res.status}`)
-  const data = (await res.json()) as {
-    access_token?: string
-    account_id?: string
-    refresh_token?: string
-  }
-  if (!data.access_token) throw new Error("Token 刷新失败：响应缺少 access_token")
+  const { status, data } = await postForm("https://auth.openai.com/oauth/token", body)
+  if (status !== 200) throw new Error(`Token 刷新失败：HTTP ${status}`)
+  const accessToken = data.access_token
+  if (!accessToken) throw new Error("Token 刷新失败：响应缺少 access_token")
   return {
-    accessToken: data.access_token,
+    accessToken: String(accessToken),
     accountId: data.account_id ? String(data.account_id) : undefined,
     refreshToken: data.refresh_token ? String(data.refresh_token) : undefined,
   }

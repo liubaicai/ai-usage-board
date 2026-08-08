@@ -38,19 +38,47 @@ export const apiClient = {
   refreshAccount: (id: string) => api<Account>(`/api/usage/${id}?refresh=1`),
   refreshAll: () => api<Account[]>("/api/usage/refresh-all", { method: "POST" }),
 
-  // Codex OAuth 设备授权
-  oauthCodexStart: () =>
+  // Codex OAuth 设备授权（可携带代理：auth.openai.com 被拦截时走代理）
+  oauthCodexStart: (proxy?: string) =>
     api<{
       device_code: string
       user_code: string
       verification_uri: string
       expires_in: number
       interval: number
-    }>("/api/oauth/codex", { method: "POST", body: JSON.stringify({}) }),
-  oauthCodexPoll: (deviceCode: string) =>
+    }>("/api/oauth/codex", {
+      method: "POST",
+      body: JSON.stringify(proxy?.trim() ? { proxy } : {}),
+    }),
+  oauthCodexPoll: (deviceCode: string, proxy?: string) =>
     api<{
       status: "ok" | "pending" | "expired"
       error?: string
       tokens?: { access_token: string; refresh_token?: string; account_id?: string }
-    }>("/api/oauth/codex", { method: "POST", body: JSON.stringify({ deviceCode }) }),
+    }>("/api/oauth/codex", {
+      method: "POST",
+      body: JSON.stringify(proxy?.trim() ? { deviceCode, proxy } : { deviceCode }),
+    }),
+
+  // GitHub Copilot OAuth 设备授权
+  oauthCopilotStart: (proxy?: string) =>
+    api<{
+      device_code: string
+      user_code: string
+      verification_uri: string
+      expires_in: number
+      interval: number
+    }>("/api/oauth/copilot", {
+      method: "POST",
+      body: JSON.stringify(proxy?.trim() ? { proxy } : {}),
+    }),
+  oauthCopilotPoll: (deviceCode: string, proxy?: string) =>
+    api<{
+      status: "ok" | "pending" | "expired"
+      error?: string
+      githubToken?: string
+    }>("/api/oauth/copilot", {
+      method: "POST",
+      body: JSON.stringify(proxy?.trim() ? { deviceCode, proxy } : { deviceCode }),
+    }),
 }

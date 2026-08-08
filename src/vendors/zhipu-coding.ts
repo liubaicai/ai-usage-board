@@ -3,7 +3,7 @@ import type { Adapter } from "@/lib/adapters"
 import type { QuotaWindow, VendorDef } from "@/lib/types"
 
 /**
- * 智谱 GLM Coding Plan（编码套餐）· 订阅制
+ * GLM Coding Plan（智谱编码套餐）· 订阅制
  * 接入方式：API Key（**裸 Key 鉴权，不带 Bearer 前缀**）；
  * 区域可选：国内站 / 国际站(z.ai) / 国内团队版（需团队 ID + 项目 ID）。
  * 查询的是订阅配额（5 小时窗口 / 每周窗口），与 Codex / Claude Code 的限额形态一致。
@@ -11,7 +11,7 @@ import type { QuotaWindow, VendorDef } from "@/lib/types"
  */
 export const zhipuCoding: VendorDef = {
   id: "zhipu-coding",
-  name: "智谱 GLM Coding Plan",
+  name: "GLM Coding Plan",
   vendor: "智谱 AI",
   kind: "subscription",
   authType: "apikey",

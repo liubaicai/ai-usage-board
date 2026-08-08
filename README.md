@@ -22,14 +22,16 @@
 - **拖拽排序**：卡片可自由拖拽调整顺序（网格内跨行跨列），顺序持久化保存
 - **卡片编辑与删除**：卡脚常驻编辑/删除按钮，删除有二次确认弹窗
 - **新增接入向导**：选择供应商后按厂商动态渲染配置表单——有的要粘贴 `auth.json`，有的填 API Key，有的要 Cookie，有的还要 OrgID
-- **两级定时刷新**：全局统一刷新间隔 + 单卡覆盖（单卡优先），卡片实时显示下次刷新倒计时
+- **两级定时刷新**：全局统一刷新间隔 + 单卡覆盖（单卡优先），卡片实时显示下次刷新倒计时；卡脚可单卡立即刷新
+- **每接入独立代理**：每个账号可选配 HTTP / SOCKS4 / SOCKS5 代理，该接入的所有厂商请求（含 token 自动刷新）走代理
+- **token 自动刷新**：Codex 等 OAuth 接入在 access_token 临近过期或 401/403 时自动用 refresh_token 刷新并回写新凭证
 - **状态告警**：用量 ≥80% / 余额过低 / 拉取失败时自动标红提示
 - **亮暗双主题**：跟随系统偏好，支持手动切换，本地记忆不闪烁
 - **全栈后端**：厂商接口请求、卡片列表/顺序、账号配置与 API Key 全部存放在后端，单一 JSON 文件存储
 
-> 💡 接入进度：**Codex（auth.json / Cookie / sub2api / cliproxy / OAuth 下拉选择）、DeepSeek、SiliconFlow、Moonshot (Kimi)、OpenRouter、智谱 GLM Coding Plan** 均已接通真实查询（服务端直连厂商 API）。其中 Moonshot / 智谱 Coding Plan 区分国内/国际站（智谱另支持国内团队版）。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：在 `src/vendors/` 新建文件（导出 `VendorDef` + `Adapter`），再到 `index.ts` 注册即可。
+> 💡 接入进度：**Codex（5 种授权）、Claude Code、GitHub Copilot（设备授权/PAT）、Gemini CLI、MiniMax（Coding Plan）、Cursor、Windsurf、Devin（experimental）、Kilo（Kilo Pass）、OpenCode、DeepSeek、SiliconFlow、Moonshot (Kimi)、OpenRouter、GLM Coding Plan** 均已接通真实查询（服务端直连厂商 API）。其中 Moonshot / 智谱 Coding Plan 区分国内/国际站（智谱另支持国内团队版）。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：在 `src/vendors/` 新建文件（导出 `VendorDef` + `Adapter`），再到 `index.ts` 注册即可。
 >
-> ⚠️ 已知限制：① **智谱按量计费**账户无任何公开余额/配额 API（余额只能看控制台）；② **Codex Cookie 方式与 OAuth 设备授权**需要能直连 OpenAI 的网络（ChatGPT/Cloudflare 会拦截数据中心 IP），优先使用 auth.json / sub2api / cliproxy 三种 JSON 授权。
+> ⚠️ 已知限制：① **智谱按量计费**账户无任何公开余额/配额 API（余额只能看控制台）；② **Codex Cookie 方式与 OAuth 设备授权**需要能直连 OpenAI 的网络（ChatGPT/Cloudflare 会拦截数据中心 IP），优先使用 auth.json / sub2api / cliproxy 三种 JSON 授权；③ **Devin** 接口为社区逆向（experimental），响应字段以实测为准。每个接入可在配置中**指定独立 HTTP/SOCKS 代理**，规避网络拦截。
 
 ## 🧰 技术栈
 
@@ -110,7 +112,7 @@ ai-usage-board/
     │   ├── siliconflow.ts    # SiliconFlow · 按量计费
     │   ├── moonshot.ts       # Moonshot (Kimi) · 按量余额 + Kimi Code 配额（国内/国际站可选）
     │   ├── openrouter.ts     # OpenRouter · 按量计费（USD）
-    │   └── zhipu-coding.ts   # 智谱 GLM Coding Plan · 订阅配额 5h/每周（裸 Key，个人/团队版）
+    │   └── zhipu-coding.ts   # GLM Coding Plan · 订阅配额 5h/每周（裸 Key，个人/团队版）
     └── lib/
         ├── types.ts          # 核心类型：VendorDef / Account / KEEP_SECRET / AccountInput
         ├── store.ts          # 存储层：JSON 读写、密钥脱敏、写队列（无种子数据）

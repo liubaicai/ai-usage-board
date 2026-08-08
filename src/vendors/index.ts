@@ -1,11 +1,20 @@
 import type { Adapter } from "@/lib/adapters"
 import type { VendorDef } from "@/lib/types"
 
+import { adapter as claudeAdapter, claude } from "./claude"
 import { adapter as codexAdapter, codex } from "./codex"
+import { adapter as copilotAdapter, copilot } from "./copilot"
+import { adapter as cursorAdapter, cursor } from "./cursor"
 import { adapter as deepseekAdapter, deepseek } from "./deepseek"
+import { adapter as devinAdapter, devin } from "./devin"
+import { adapter as geminiAdapter, gemini } from "./gemini"
+import { adapter as kiloAdapter, kilo } from "./kilo"
+import { adapter as minimaxAdapter, minimax } from "./minimax"
 import { adapter as moonshotAdapter, moonshot } from "./moonshot"
+import { adapter as opencodeAdapter, opencode } from "./opencode"
 import { adapter as openrouterAdapter, openrouter } from "./openrouter"
 import { adapter as siliconflowAdapter, siliconflow } from "./siliconflow"
+import { adapter as windsurfAdapter, windsurf } from "./windsurf"
 import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
 
 /**
@@ -17,6 +26,15 @@ import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
  */
 export const VENDORS: VendorDef[] = [
   codex,
+  claude,
+  copilot,
+  gemini,
+  cursor,
+  windsurf,
+  devin,
+  minimax,
+  kilo,
+  opencode,
   deepseek,
   siliconflow,
   moonshot,
@@ -31,6 +49,15 @@ export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
 /** 厂商适配器注册表：vendorId → Adapter（与厂商文件一一对应） */
 export const ADAPTERS: Record<string, Adapter> = {
   [codex.id]: codexAdapter,
+  [claude.id]: claudeAdapter,
+  [copilot.id]: copilotAdapter,
+  [gemini.id]: geminiAdapter,
+  [cursor.id]: cursorAdapter,
+  [windsurf.id]: windsurfAdapter,
+  [devin.id]: devinAdapter,
+  [minimax.id]: minimaxAdapter,
+  [kilo.id]: kiloAdapter,
+  [opencode.id]: opencodeAdapter,
   [deepseek.id]: deepseekAdapter,
   [siliconflow.id]: siliconflowAdapter,
   [moonshot.id]: moonshotAdapter,

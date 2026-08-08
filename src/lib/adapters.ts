@@ -1,4 +1,5 @@
 import { ADAPTERS } from "@/vendors"
+import { runWithProxy } from "@/lib/http"
 import type {
   Account,
   Balance,
@@ -36,27 +37,30 @@ export function hasAdapter(vendorId: string): boolean {
   return vendorId in ADAPTERS
 }
 
-/** 拉取真实用量并合并到账号；仅当厂商已注册适配器时使用 */
+/** 拉取真实用量并合并到账号；仅当厂商已注册适配器时使用。
+ *  账号配置了 proxy 时，该账号的全部厂商请求自动走代理（AsyncLocalStorage 上下文注入）。 */
 export async function fetchAccountUsage(
   account: Account,
   vendor: VendorDef
 ): Promise<{ account: Account; configUpdate?: Record<string, string> }> {
   const adapter = ADAPTERS[vendor.id]
   if (!adapter) throw new Error(`「${vendor.name}」尚未接入实时查询`)
-  const result = await adapter(account.config)
-  const now = Date.now()
-  const next: Account = {
-    ...account,
-    plan: result.plan ?? account.plan,
-    accountName: result.accountName ?? account.accountName,
-    subscriptionExpiresAt:
-      result.subscriptionExpiresAt ?? account.subscriptionExpiresAt,
-    balance: result.balance ?? account.balance,
-    windows: result.windows ?? account.windows,
-    status: result.status ?? "ok",
-    note: result.note ?? account.note,
-    lastFetched: now,
-    updatedAt: formatTime(now),
-  }
-  return { account: next, configUpdate: result.configUpdate }
+  return runWithProxy(account.config.proxy?.trim() || undefined, async () => {
+    const result = await adapter(account.config)
+    const now = Date.now()
+    const next: Account = {
+      ...account,
+      plan: result.plan ?? account.plan,
+      accountName: result.accountName ?? account.accountName,
+      subscriptionExpiresAt:
+        result.subscriptionExpiresAt ?? account.subscriptionExpiresAt,
+      balance: result.balance ?? account.balance,
+      windows: result.windows ?? account.windows,
+      status: result.status ?? "ok",
+      note: result.note ?? account.note,
+      lastFetched: now,
+      updatedAt: formatTime(now),
+    }
+    return { account: next, configUpdate: result.configUpdate }
+  })
 }
