@@ -17,6 +17,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProviderCard } from "@/components/ProviderCard"
 import { ThemeSettings } from "@/components/ThemeSettings"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { VENDOR_MAP } from "@/vendors"
 import { apiClient } from "@/lib/client-api"
 import {
@@ -51,7 +52,7 @@ function useTheme() {
   return { dark, toggle: () => apply(!darkRef.current) }
 }
 
-function useFullscreen() {
+function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement)
@@ -60,9 +61,9 @@ function useFullscreen() {
   }, [])
   const toggle = () => {
     if (document.fullscreenElement) {
-      void document.exitFullscreen()
+      void document.exitFullscreen().catch(() => {})
     } else {
-      void document.documentElement.requestFullscreen().catch(() => {})
+      void targetRef.current?.requestFullscreen().catch(() => {})
     }
   }
   return { isFullscreen, toggle }
@@ -70,7 +71,8 @@ function useFullscreen() {
 
 export default function Dashboard() {
   const { dark, toggle } = useTheme()
-  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
+  const mainRef = useRef<HTMLElement>(null)
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(mainRef)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [globalRefreshSec, setGlobalRefreshSec] = useState(300)
   const [loaded, setLoaded] = useState(false)
@@ -304,7 +306,21 @@ export default function Dashboard() {
       </div>
 
       {/* 卡片网格：严格对齐、行内等高，响应式列数；支持拖拽排序 */}
-      <main className="mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6">
+      <main
+        ref={mainRef}
+        className={cn(
+          "mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6",
+          isFullscreen && "bg-background pt-8"
+        )}
+      >
+        {isFullscreen && (
+          <div className="mb-4 flex items-center justify-end">
+            <Button variant="outline" size="sm" onClick={toggleFullscreen}>
+              <Minimize className="h-3.5 w-3.5" />
+              退出全屏
+            </Button>
+          </div>
+        )}
         {!loaded && (
           <div className="py-16 text-center text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
             加载中…
