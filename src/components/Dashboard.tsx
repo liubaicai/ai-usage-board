@@ -10,11 +10,12 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core"
 import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable"
-import { Maximize, Minimize, Moon, Plus, RefreshCw, Sun } from "lucide-react"
+import { Maximize, Minimize, Moon, Plus, RefreshCw, Settings, Sun } from "lucide-react"
 
 import { AccountDialog } from "@/components/AccountDialog"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProviderCard } from "@/components/ProviderCard"
+import { ThemeSettings } from "@/components/ThemeSettings"
 import { Button } from "@/components/ui/button"
 import { VENDOR_MAP } from "@/vendors"
 import { apiClient } from "@/lib/client-api"
@@ -78,6 +79,7 @@ export default function Dashboard() {
   const [editing, setEditing] = useState<Account | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Account | null>(null)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const inFlight = useRef(new Set<string>())
 
   const loadState = async () => {
@@ -257,6 +259,14 @@ export default function Dashboard() {
             <Button
               variant="ghost"
               size="icon"
+              onClick={() => setSettingsOpen(true)}
+              aria-label="外观设置"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={toggleFullscreen}
               aria-label={isFullscreen ? "退出全屏" : "全屏"}
             >
@@ -353,6 +363,8 @@ export default function Dashboard() {
         onClose={() => setDialogOpen(false)}
         onSave={handleSave}
       />
+
+      <ThemeSettings open={settingsOpen} dark={dark} onClose={() => setSettingsOpen(false)} />
 
       <ConfirmDialog
         open={confirmDelete !== null}

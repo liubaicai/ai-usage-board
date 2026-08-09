@@ -11,14 +11,30 @@ export const viewport: Viewport = {
   initialScale: 1,
 }
 
-/** 首屏前读取本地主题偏好，避免闪烁 */
+/** 首屏前读取本地外观偏好（明暗 / 配色主题 / 背景图），避免闪烁 */
 const themeScript = `
 ;(function () {
   try {
+    var root = document.documentElement
     var stored = localStorage.getItem("ai-usage-theme")
     var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
     if (stored === "dark" || (!stored && prefersDark)) {
-      document.documentElement.classList.add("dark")
+      root.classList.add("dark")
+    }
+    var colorTheme = localStorage.getItem("ai-usage-color-theme")
+    if (colorTheme && colorTheme !== "swiss") {
+      root.dataset.theme = colorTheme
+    }
+    var bgRaw = localStorage.getItem("ai-usage-bg")
+    if (bgRaw) {
+      var bg = JSON.parse(bgRaw)
+      if (bg && typeof bg.src === "string" && bg.src) {
+        root.dataset.hasBg = "true"
+        var src = bg.src.replace(/["\\\\\\n\\r]/g, "")
+        root.style.setProperty("--bg-image", 'url("' + src + '")')
+        root.style.setProperty("--bg-opacity", String(typeof bg.opacity === "number" ? bg.opacity : 0.18))
+        root.style.setProperty("--bg-blur", (typeof bg.blur === "number" ? bg.blur : 0) + "px")
+      }
     }
   } catch (e) {}
 })()

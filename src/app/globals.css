@@ -58,6 +58,214 @@
   --ring: #d3d3cd;
 }
 
+/*
+ * 配色主题（data-theme）：沿用瑞士排版骨架，但整套色彩变量都随主题变化
+ * - 纸面底色、墨色（前景=卡片顶条/进度条/标题）、卡片面、描边全部独立调色，
+ *   保证主题切换时页面气质整体变化，而非仅换点缀色
+ * - 未设置 data-theme 时为默认「瑞士红」（上方 :root / .dark）
+ * - destructive 不在各主题内覆盖，统一沿用信号红语义
+ */
+
+/* 克莱因蓝：蓝图气质——冷蓝纸面 + 藏青墨色 + 国际克莱因蓝 */
+:root[data-theme="klein"] {
+  --background: #e9eef7;
+  --foreground: #10203f;
+  --card: #ffffff;
+  --card-foreground: #10203f;
+  --popover: #ffffff;
+  --popover-foreground: #10203f;
+  --primary: #10203f;
+  --primary-foreground: #f2f5fb;
+  --secondary: #dbe4f2;
+  --secondary-foreground: #10203f;
+  --muted: #dbe4f2;
+  --muted-foreground: #4d5d80;
+  --accent: #002fa7;
+  --accent-foreground: #ffffff;
+  --border: #bcc9e2;
+  --input: #bcc9e2;
+  --ring: #10203f;
+}
+.dark[data-theme="klein"] {
+  --background: #0a1120;
+  --foreground: #bcccec;
+  --card: #101a30;
+  --card-foreground: #bcccec;
+  --popover: #101a30;
+  --popover-foreground: #bcccec;
+  --primary: #bcccec;
+  --primary-foreground: #0a1120;
+  --secondary: #16233d;
+  --secondary-foreground: #bcccec;
+  --muted: #16233d;
+  --muted-foreground: #6d81ab;
+  --accent: #5c8aff;
+  --accent-foreground: #0a1120;
+  --border: #233457;
+  --input: #233457;
+  --ring: #bcccec;
+}
+
+/* 英伦绿：植物气质——灰绿纸面 + 深林墨色 + 赛车绿 */
+:root[data-theme="racing"] {
+  --background: #e9efe7;
+  --foreground: #12271a;
+  --card: #ffffff;
+  --card-foreground: #12271a;
+  --popover: #ffffff;
+  --popover-foreground: #12271a;
+  --primary: #12271a;
+  --primary-foreground: #f0f5ef;
+  --secondary: #d9e5d7;
+  --secondary-foreground: #12271a;
+  --muted: #d9e5d7;
+  --muted-foreground: #4c6a54;
+  --accent: #00563f;
+  --accent-foreground: #ffffff;
+  --border: #b8cdb9;
+  --input: #b8cdb9;
+  --ring: #12271a;
+}
+.dark[data-theme="racing"] {
+  --background: #0a1a10;
+  --foreground: #bfe0c6;
+  --card: #0f2616;
+  --card-foreground: #bfe0c6;
+  --popover: #0f2616;
+  --popover-foreground: #bfe0c6;
+  --primary: #bfe0c6;
+  --primary-foreground: #0a1a10;
+  --secondary: #143320;
+  --secondary-foreground: #bfe0c6;
+  --muted: #143320;
+  --muted-foreground: #6f9a78;
+  --accent: #46c787;
+  --accent-foreground: #0a1a10;
+  --border: #1d4229;
+  --input: #1d4229;
+  --ring: #bfe0c6;
+}
+
+/* 赤橙：暖窑气质——奶油纸面 + 浓缩咖啡墨色 + 焦橙 */
+:root[data-theme="ember"] {
+  --background: #f8ecdc;
+  --foreground: #2a1a0c;
+  --card: #fffaf2;
+  --card-foreground: #2a1a0c;
+  --popover: #fffaf2;
+  --popover-foreground: #2a1a0c;
+  --primary: #2a1a0c;
+  --primary-foreground: #faf3e8;
+  --secondary: #f2dfc4;
+  --secondary-foreground: #2a1a0c;
+  --muted: #f2dfc4;
+  --muted-foreground: #83643f;
+  --accent: #c2410c;
+  --accent-foreground: #ffffff;
+  --border: #e3c69e;
+  --input: #e3c69e;
+  --ring: #2a1a0c;
+}
+.dark[data-theme="ember"] {
+  --background: #1d1108;
+  --foreground: #ecd5b6;
+  --card: #2b1a0c;
+  --card-foreground: #ecd5b6;
+  --popover: #2b1a0c;
+  --popover-foreground: #ecd5b6;
+  --primary: #ecd5b6;
+  --primary-foreground: #1d1108;
+  --secondary: #3a2410;
+  --secondary-foreground: #ecd5b6;
+  --muted: #3a2410;
+  --muted-foreground: #a8834f;
+  --accent: #fb8c2e;
+  --accent-foreground: #1d1108;
+  --border: #4a2d13;
+  --input: #4a2d13;
+  --ring: #ecd5b6;
+}
+
+/* 莫兰迪：画室气质——暖灰纸面 + 灰褐墨色 + 雾蓝（刻意低饱和） */
+:root[data-theme="morandi"] {
+  --background: #e6e2d8;
+  --foreground: #3f3a30;
+  --card: #efede5;
+  --card-foreground: #3f3a30;
+  --popover: #efede5;
+  --popover-foreground: #3f3a30;
+  --primary: #3f3a30;
+  --primary-foreground: #eceade;
+  --secondary: #d9d4c2;
+  --secondary-foreground: #3f3a30;
+  --muted: #d9d4c2;
+  --muted-foreground: #7c7462;
+  --accent: #5a6e7f;
+  --accent-foreground: #ffffff;
+  --border: #c6bfa9;
+  --input: #c6bfa9;
+  --ring: #3f3a30;
+}
+.dark[data-theme="morandi"] {
+  --background: #211e19;
+  --foreground: #d0c9b6;
+  --card: #2b2820;
+  --card-foreground: #d0c9b6;
+  --popover: #2b2820;
+  --popover-foreground: #d0c9b6;
+  --primary: #d0c9b6;
+  --primary-foreground: #211e19;
+  --secondary: #363227;
+  --secondary-foreground: #d0c9b6;
+  --muted: #363227;
+  --muted-foreground: #968c74;
+  --accent: #a3bccb;
+  --accent-foreground: #211e19;
+  --border: #443f31;
+  --input: #443f31;
+  --ring: #d0c9b6;
+}
+
+/* 檀紫：暮紫气质——薰衣草纸面 + 深紫墨色 + 紫檀 */
+:root[data-theme="violet"] {
+  --background: #efe9f6;
+  --foreground: #241335;
+  --card: #fbf9fe;
+  --card-foreground: #241335;
+  --popover: #fbf9fe;
+  --popover-foreground: #241335;
+  --primary: #241335;
+  --primary-foreground: #f5f1fa;
+  --secondary: #e3d9ef;
+  --secondary-foreground: #241335;
+  --muted: #e3d9ef;
+  --muted-foreground: #6f5b8a;
+  --accent: #6b4e92;
+  --accent-foreground: #ffffff;
+  --border: #cbb9dd;
+  --input: #cbb9dd;
+  --ring: #241335;
+}
+.dark[data-theme="violet"] {
+  --background: #150c22;
+  --foreground: #d3c4ec;
+  --card: #1f1332;
+  --card-foreground: #d3c4ec;
+  --popover: #1f1332;
+  --popover-foreground: #d3c4ec;
+  --primary: #d3c4ec;
+  --primary-foreground: #150c22;
+  --secondary: #2a1a42;
+  --secondary-foreground: #d3c4ec;
+  --muted: #2a1a42;
+  --muted-foreground: #8f76b3;
+  --accent: #bd97e8;
+  --accent-foreground: #150c22;
+  --border: #3a2457;
+  --input: #3a2457;
+  --ring: #d3c4ec;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -106,6 +314,50 @@
     background: var(--accent);
     color: #ffffff;
   }
+}
+
+/*
+ * 自定义背景图层
+ * - 绘制顺序：画布背景色 → 该图层（负 z-index）→ 页面内容
+ * - inset 外扩 32px 抵消高斯模糊的边缘透明衰减
+ * - 变量由外观设置写入 <html>：--bg-image / --bg-opacity / --bg-blur
+ */
+html[data-has-bg="true"] body::before {
+  content: "";
+  position: fixed;
+  inset: -32px;
+  z-index: -1;
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--bg-opacity, 0.18);
+  filter: blur(var(--bg-blur, 0px));
+  pointer-events: none;
+}
+
+/* 外观设置面板入场动画 */
+@keyframes panel-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.panel-enter {
+  animation: panel-slide-in 0.18s ease-out;
+}
+.backdrop-enter {
+  animation: backdrop-fade-in 0.18s ease-out;
 }
 
 /* 细进度条轨道纹理（可选的斜纹，用于已用超额部分） */
