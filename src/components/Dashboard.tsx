@@ -310,14 +310,13 @@ export default function Dashboard() {
         ref={mainRef}
         className={cn(
           "mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6",
-          isFullscreen && "bg-background pt-8"
+          isFullscreen && "bg-background pt-8 h-screen overflow-y-auto"
         )}
       >
         {isFullscreen && (
-          <div className="mb-4 flex items-center justify-end">
-            <Button variant="outline" size="sm" onClick={toggleFullscreen}>
-              <Minimize className="h-3.5 w-3.5" />
-              退出全屏
+          <div className="fixed right-3 top-3 z-50">
+            <Button variant="ghost" size="icon" onClick={toggleFullscreen} aria-label="退出全屏">
+              <Minimize className="h-4 w-4" />
             </Button>
           </div>
         )}
