@@ -29,14 +29,25 @@ const LS_THEME = "ai-usage-theme"
 
 function useTheme() {
   const [dark, setDark] = useState(false)
+  // 用 ref 保存最新值，避免闭包过期；挂载时只读 class 同步状态，不写 localStorage
+  const darkRef = useRef(false)
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"))
+    const initial = document.documentElement.classList.contains("dark")
+    darkRef.current = initial
+    setDark(initial)
   }, [])
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark)
-    localStorage.setItem(LS_THEME, dark ? "dark" : "light")
-  }, [dark])
-  return { dark, toggle: () => setDark((v) => !v) }
+  /** 切换并持久化：写 DOM 类 + localStorage 只在此处发生，避免挂载时用初始 false 覆盖存储 */
+  const apply = (next: boolean) => {
+    darkRef.current = next
+    setDark(next)
+    document.documentElement.classList.toggle("dark", next)
+    try {
+      localStorage.setItem(LS_THEME, next ? "dark" : "light")
+    } catch {
+      // localStorage 不可用（隐私模式等）：本次切换仍生效，仅刷新后回退系统偏好
+    }
+  }
+  return { dark, toggle: () => apply(!darkRef.current) }
 }
 
 function useFullscreen() {
