@@ -54,11 +54,89 @@ function useTheme() {
 
 function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement)
-    document.addEventListener("fullscreenchange", handler)
-    return () => document.removeEventListener("fullscreenchange", handler)
-  }, [])
+    let disposed = false
+    let wakeLockPending = false
+
+    const releaseWakeLock = () => {
+      const wakeLock = wakeLockRef.current
+      wakeLockRef.current = null
+      if (wakeLock && !wakeLock.released) {
+        void wakeLock.release().catch(() => {})
+      }
+    }
+
+    const requestWakeLock = async () => {
+      if (
+        disposed ||
+        wakeLockPending ||
+        wakeLockRef.current ||
+        document.fullscreenElement !== targetRef.current ||
+        document.visibilityState !== "visible" ||
+        !("wakeLock" in navigator)
+      ) {
+        return
+      }
+
+      wakeLockPending = true
+      try {
+        const wakeLock = await navigator.wakeLock.request("screen")
+        if (
+          disposed ||
+          document.fullscreenElement !== targetRef.current ||
+          document.visibilityState !== "visible"
+        ) {
+          void wakeLock.release().catch(() => {})
+          return
+        }
+
+        wakeLockRef.current = wakeLock
+        wakeLock.addEventListener(
+          "release",
+          () => {
+            if (wakeLockRef.current === wakeLock) wakeLockRef.current = null
+          },
+          { once: true }
+        )
+      } catch {
+        // Wake Lock 可能不受支持或被浏览器策略拒绝；全屏功能仍正常可用。
+      } finally {
+        wakeLockPending = false
+      }
+    }
+
+    const handleFullscreenChange = () => {
+      const fullscreen = document.fullscreenElement === targetRef.current
+      setIsFullscreen(fullscreen)
+      if (fullscreen) {
+        void requestWakeLock()
+      } else {
+        releaseWakeLock()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void requestWakeLock()
+      } else {
+        releaseWakeLock()
+      }
+    }
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    handleFullscreenChange()
+
+    return () => {
+      disposed = true
+      document.removeEventListener("fullscreenchange", handleFullscreenChange)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      releaseWakeLock()
+    }
+  }, [targetRef])
+
   const toggle = () => {
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => {})
