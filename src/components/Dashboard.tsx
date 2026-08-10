@@ -11,6 +11,7 @@ import {
 } from "@dnd-kit/core"
 import { SortableContext, arrayMove, rectSortingStrategy } from "@dnd-kit/sortable"
 import { Maximize, Minimize, Moon, Plus, RefreshCw, Settings, Sun } from "lucide-react"
+import NoSleep from "nosleep.js"
 
 import { AccountDialog } from "@/components/AccountDialog"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
@@ -55,6 +56,7 @@ function useTheme() {
 function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+  const noSleepRef = useRef<NoSleep | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -68,6 +70,10 @@ function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
       }
     }
 
+    const disableNoSleep = () => {
+      if (noSleepRef.current?.isEnabled) noSleepRef.current.disable()
+    }
+
     const requestWakeLock = async () => {
       if (
         disposed ||
@@ -75,6 +81,7 @@ function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
         wakeLockRef.current ||
         document.fullscreenElement !== targetRef.current ||
         document.visibilityState !== "visible" ||
+        !window.isSecureContext ||
         !("wakeLock" in navigator)
       ) {
         return
@@ -101,7 +108,7 @@ function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
           { once: true }
         )
       } catch {
-        // Wake Lock 可能不受支持或被浏览器策略拒绝；全屏功能仍正常可用。
+        // 浏览器可能因省电策略拒绝原生唤醒锁；全屏功能仍正常可用。
       } finally {
         wakeLockPending = false
       }
@@ -114,6 +121,7 @@ function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
         void requestWakeLock()
       } else {
         releaseWakeLock()
+        disableNoSleep()
       }
     }
 
@@ -134,6 +142,7 @@ function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
       document.removeEventListener("fullscreenchange", handleFullscreenChange)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
       releaseWakeLock()
+      disableNoSleep()
     }
   }, [targetRef])
 
@@ -141,7 +150,24 @@ function useFullscreen(targetRef: React.RefObject<HTMLElement | null>) {
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => {})
     } else {
-      void targetRef.current?.requestFullscreen().catch(() => {})
+      const target = targetRef.current
+      if (!target) return
+
+      if (!window.isSecureContext || !("wakeLock" in navigator)) {
+        const noSleep = noSleepRef.current ?? new NoSleep()
+        noSleepRef.current = noSleep
+        void noSleep
+          .enable()
+          .then(() => {
+            if (document.fullscreenElement !== target) noSleep.disable()
+          })
+          .catch((error) => console.warn("无法启用移动端防锁屏回退", error))
+      }
+
+      void target.requestFullscreen().catch((error) => {
+        if (noSleepRef.current?.isEnabled) noSleepRef.current.disable()
+        console.warn("无法进入全屏", error)
+      })
     }
   }
   return { isFullscreen, toggle }
