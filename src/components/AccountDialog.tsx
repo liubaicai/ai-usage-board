@@ -91,7 +91,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const [refreshSec, setRefreshSec] = useState<string>("inherit")
   // OAuth 设备授权状态（codex / copilot 通用）
   const [oauthFlow, setOauthFlow] = useState<{
-    flow: "codex" | "copilot"
+    flow: "codex" | "copilot" | "workbuddy"
     deviceCode: string
     userCode: string
     verificationUri: string
@@ -152,25 +152,51 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
         const r =
           oauthFlow.flow === "copilot"
             ? await apiClient.oauthCopilotPoll(oauthFlow.deviceCode, proxy)
-            : await apiClient.oauthCodexPoll(oauthFlow.deviceCode, proxy)
+            : oauthFlow.flow === "workbuddy"
+              ? await apiClient.oauthWorkbuddyPoll(oauthFlow.deviceCode, proxy)
+              : await apiClient.oauthCodexPoll(oauthFlow.deviceCode, proxy)
         if (cancelled) return
         if (r.status === "ok") {
-          setConfig((c) => ({
-            ...c,
-            content:
-              oauthFlow.flow === "copilot"
-                ? JSON.stringify({ githubToken: (r as { githubToken?: string }).githubToken })
-                : JSON.stringify({
-                    tokens: {
-                      access_token: (r as { tokens?: { access_token: string } }).tokens
-                        ?.access_token,
-                      refresh_token: (r as { tokens?: { refresh_token?: string } }).tokens
-                        ?.refresh_token,
-                      account_id: (r as { tokens?: { account_id?: string } }).tokens
-                        ?.account_id,
-                    },
-                  }),
-          }))
+          if (oauthFlow.flow === "workbuddy") {
+            const wr = r as {
+              accessToken?: string
+              refreshToken?: string
+              uid?: string
+              email?: string
+              nickname?: string
+              enterpriseId?: string
+              domain?: string
+            }
+            setConfig((c) => ({
+              ...c,
+              content: JSON.stringify({
+                access_token: wr.accessToken,
+                refresh_token: wr.refreshToken,
+                uid: wr.uid,
+                email: wr.email,
+                nickname: wr.nickname,
+                enterprise_id: wr.enterpriseId,
+                domain: wr.domain,
+              }),
+            }))
+          } else {
+            setConfig((c) => ({
+              ...c,
+              content:
+                oauthFlow.flow === "copilot"
+                  ? JSON.stringify({ githubToken: (r as { githubToken?: string }).githubToken })
+                  : JSON.stringify({
+                      tokens: {
+                        access_token: (r as { tokens?: { access_token: string } }).tokens
+                          ?.access_token,
+                        refresh_token: (r as { tokens?: { refresh_token?: string } }).tokens
+                          ?.refresh_token,
+                        account_id: (r as { tokens?: { account_id?: string } }).tokens
+                          ?.account_id,
+                      },
+                    }),
+            }))
+          }
           setOauthDone(true)
           setOauthFlow(null)
           return
@@ -204,6 +230,17 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const startOauth = async () => {
     setOauthError("")
     try {
+      if (vendorId === "workbuddy") {
+        const r = await apiClient.oauthWorkbuddyStart(proxy)
+        setOauthFlow({
+          flow: "workbuddy",
+          deviceCode: r.state,
+          userCode: "",
+          verificationUri: r.verification_uri,
+          interval: r.interval || 2,
+        })
+        return
+      }
       const flow = vendorId === "copilot" ? "copilot" : "codex"
       const r =
         flow === "copilot"
@@ -396,9 +433,12 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
 
           {/* OAuth 设备授权面板（Codex / GitHub Copilot） */}
           {(vendor.oauthFlow === "codex" && config.authMethod === "oauth") ||
-            (vendor.oauthFlow === "copilot" && config.authMethod === "device-flow") ? (
+            (vendor.oauthFlow === "copilot" && config.authMethod === "device-flow") ||
+            (vendor.oauthFlow === "workbuddy" && config.authMethod === "oauth") ? (
             <div>
-              <span className={labelCls}>OAuth 设备授权</span>
+              <span className={labelCls}>
+                {vendor.oauthFlow === "workbuddy" ? "OAuth 浏览器授权" : "OAuth 设备授权"}
+              </span>
               {oauthDone ? (
                 <div className="border border-accent px-3 py-2.5 text-xs">
                   ✓ 已获取凭证，点击「保存」完成添加
@@ -413,21 +453,25 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
                       href={oauthFlow.verificationUri}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-accent underline"
+                      className="break-all text-accent underline"
                     >
                       {oauthFlow.verificationUri}
                     </a>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                      输入代码
-                    </span>
-                    <span className="text-2xl font-black tracking-[0.25em] tabular-nums">
-                      {oauthFlow.userCode}
-                    </span>
-                  </div>
+                  {oauthFlow.userCode && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                        输入代码
+                      </span>
+                      <span className="text-2xl font-black tracking-[0.25em] tabular-nums">
+                        {oauthFlow.userCode}
+                      </span>
+                    </div>
+                  )}
                   <p className="text-[10px] tracking-[0.08em] text-muted-foreground">
-                    授权完成后自动获取凭证，无需其他操作
+                    {vendor.oauthFlow === "workbuddy"
+                      ? "在浏览器完成登录后自动获取凭证，无需其他操作"
+                      : "授权完成后自动获取凭证，无需其他操作"}
                   </p>
                 </div>
               ) : (

@@ -48,7 +48,7 @@ export interface VendorDef {
   currency?: "CNY" | "USD"
   windowTemplates?: WindowTemplate[]
   /** 可选：设备授权流程标识（Codex / Copilot），存在时对话框渲染 OAuth 授权面板 */
-  oauthFlow?: "codex" | "copilot"
+  oauthFlow?: "codex" | "copilot" | "workbuddy"
   fields: ConfigField[]
 }
 

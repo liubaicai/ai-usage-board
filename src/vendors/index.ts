@@ -15,6 +15,7 @@ import { adapter as openrouterAdapter, openrouter } from "./openrouter"
 import { adapter as relayAdapter, relay } from "./relay"
 import { adapter as siliconflowAdapter, siliconflow } from "./siliconflow"
 import { adapter as windsurfAdapter, windsurf } from "./windsurf"
+import { adapter as workbuddyAdapter, workbuddy } from "./workbuddy"
 import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
 
 /**
@@ -31,6 +32,7 @@ export const VENDORS: VendorDef[] = [
   gemini,
   cursor,
   windsurf,
+  workbuddy,
   minimax,
   kilo,
   opencode,
@@ -54,6 +56,7 @@ export const ADAPTERS: Record<string, Adapter> = {
   [gemini.id]: geminiAdapter,
   [cursor.id]: cursorAdapter,
   [windsurf.id]: windsurfAdapter,
+  [workbuddy.id]: workbuddyAdapter,
   [minimax.id]: minimaxAdapter,
   [kilo.id]: kiloAdapter,
   [opencode.id]: opencodeAdapter,

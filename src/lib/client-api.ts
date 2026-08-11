@@ -83,4 +83,33 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(proxy?.trim() ? { deviceCode, proxy } : { deviceCode }),
     }),
+
+  // WorkBuddy（腾讯云 CodeBuddy）OAuth 授权
+  oauthWorkbuddyStart: (proxy?: string) =>
+    api<{
+      state: string
+      verification_uri: string
+      expires_in: number
+      interval: number
+    }>("/api/oauth/workbuddy", {
+      method: "POST",
+      body: JSON.stringify(proxy?.trim() ? { proxy } : {}),
+    }),
+  oauthWorkbuddyPoll: (state: string, proxy?: string) =>
+    api<{
+      status: "ok" | "pending" | "expired"
+      error?: string
+      interval?: number
+      accessToken?: string
+      refreshToken?: string
+      uid?: string
+      email?: string
+      nickname?: string
+      enterpriseId?: string
+      enterpriseName?: string
+      domain?: string
+    }>("/api/oauth/workbuddy", {
+      method: "POST",
+      body: JSON.stringify(proxy?.trim() ? { state, proxy } : { state }),
+    }),
 }
