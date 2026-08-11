@@ -162,9 +162,12 @@ export function ProviderCard({
         p.status === "error" && "border-accent border-t-accent"
       )}
     >
-      {/* 卡头：接入方式 / 套餐 / 状态 */}
+      {/* 卡头：手机显示卡片名，桌面显示接入方式 */}
       <header className="flex items-center justify-between gap-2">
-        <Badge variant="muted" className="px-0">
+        <h3 className="min-w-0 flex-1 truncate text-sm font-black leading-none sm:hidden">
+          {customLabel ? p.label : vendor.name}
+        </h3>
+        <Badge variant="muted" className="hidden px-0 sm:inline-flex">
           {AUTH_LABEL[vendor.authType]}
         </Badge>
         <div className="flex items-center gap-2">
@@ -181,7 +184,7 @@ export function ProviderCard({
       </header>
 
       {/* 主标题：自定义名称优先，否则供应商名兜底 */}
-      <h3 className="mt-2 truncate text-base font-black leading-none tracking-tighter sm:mt-3 sm:text-[26px]">
+      <h3 className="mt-3 hidden truncate text-[26px] font-black leading-none tracking-tighter sm:block">
         {customLabel ? p.label : vendor.name}
       </h3>
       {/* 副标题行：厂商 · 账号名 · 订阅到期（手机端隐藏以节省纵向空间） */}

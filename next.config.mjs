@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    instrumentationHook: true,
+  },
   // 仅在 Docker 构建时启用 standalone 产物（Dockerfile builder 阶段设置 NEXT_OUTPUT=standalone），
   // 本地 dev / build 保持默认输出，避免相互影响
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,

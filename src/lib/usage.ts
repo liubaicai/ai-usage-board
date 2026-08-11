@@ -45,9 +45,11 @@ async function doRefresh(id: string): Promise<Account> {
   await saveStore((s) => {
     s.accounts = s.accounts.map((a) => {
       if (a.id !== id) return a
-      // token 自动刷新后写回新授权内容（如新的 auth.json）
-      if (configUpdate) {
-        updated = { ...updated, config: { ...a.config, ...configUpdate } }
+      // 以存储中的最新配置为基准，避免并发的每日 token 刷新被旧快照覆盖。
+      updated = {
+        ...updated,
+        config: { ...a.config, ...(configUpdate ?? {}) },
+        workbuddyAutomation: a.workbuddyAutomation ?? updated.workbuddyAutomation,
       }
       return updated
     })

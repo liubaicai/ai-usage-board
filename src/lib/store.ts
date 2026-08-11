@@ -70,7 +70,7 @@ export function maskAccount(acc: Account, vendor?: VendorDef): Account {
   const config: Record<string, string> = {}
   for (const f of vendor?.fields ?? []) {
     const v = acc.config[f.key]
-    config[f.key] = f.secret && v ? KEEP_SECRET : (v ?? "")
+    config[f.key] = f.secret && v ? KEEP_SECRET : (v ?? f.options?.[0]?.value ?? "")
   }
   // 保留非厂商封装的通用字段（proxy 等非密钥类额外配置，不需 mask）
   if (acc.config.proxy) config.proxy = acc.config.proxy

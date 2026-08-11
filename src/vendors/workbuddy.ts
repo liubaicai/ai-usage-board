@@ -42,10 +42,23 @@ export const workbuddy: VendorDef = {
       required: true,
       dependsOn: { key: "authMethod", value: "json" },
     },
+    {
+      key: "autoCheckin",
+      label: "自动签到",
+      options: [
+        { value: "true", label: "开启（每天 09:00，21:00 补偿）" },
+        { value: "false", label: "关闭" },
+      ],
+    },
   ],
 }
 
 const API_BASE = "https://www.codebuddy.cn"
+const CLIENT_UA = "CLI/2.63.2 CodeBuddy/2.63.2"
+const TOKEN_REFRESH_URLS = [
+  "https://copilot.tencent.com/v2/plugin/auth/token/refresh",
+  `${API_BASE}/v2/plugin/auth/token/refresh`,
+] as const
 
 /** 包代码常量（与官方 CodeBuddy web client 对齐） */
 const PACKAGE_CODE = {
@@ -59,7 +72,7 @@ const PACKAGE_CODE = {
 } as const
 
 /** 从导入的 JSON 中解析出鉴权所需的字段 */
-interface WorkbuddyCredential {
+export interface WorkbuddyCredential {
   accessToken: string
   refreshToken?: string
   uid?: string
@@ -69,7 +82,7 @@ interface WorkbuddyCredential {
   domain?: string
 }
 
-function parseCredential(content: string): WorkbuddyCredential {
+export function parseWorkbuddyCredential(content: string): WorkbuddyCredential {
   const trimmed = content.trim()
   if (!trimmed) throw new Error("缺少授权 JSON，请在编辑中填写")
 
@@ -95,6 +108,18 @@ function parseCredential(content: string): WorkbuddyCredential {
   }
 }
 
+function serializeCredential(cred: WorkbuddyCredential): string {
+  return JSON.stringify({
+    access_token: cred.accessToken,
+    refresh_token: cred.refreshToken,
+    uid: cred.uid,
+    email: cred.email,
+    nickname: cred.nickname,
+    enterprise_id: cred.enterpriseId,
+    domain: cred.domain,
+  })
+}
+
 /** 从对象中按候选 key 取非空字符串 */
 function strVal(obj: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
@@ -111,6 +136,7 @@ function authHeaders(cred: WorkbuddyCredential): Record<string, string> {
     "Content-Type": "application/json",
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "zh-CN,zh;q=0.9",
+    "User-Agent": CLIENT_UA,
   }
   if (cred.uid) h["X-User-Id"] = cred.uid
   if (cred.enterpriseId) {
@@ -121,30 +147,190 @@ function authHeaders(cred: WorkbuddyCredential): Record<string, string> {
   return h
 }
 
-/** 用 refresh_token 刷新 access_token；成功返回新凭证（失败返回 null，降级用原 token） */
-async function refreshToken(cred: WorkbuddyCredential): Promise<Partial<WorkbuddyCredential> | null> {
-  if (!cred.refreshToken) return null
-  try {
-    const data = (await postJson(
-      `${API_BASE}/v2/plugin/auth/token/refresh`,
-      {},
-      {
+/** 用 refresh_token 刷新 access_token，并兼容 CN 的两套刷新域名。 */
+async function requestTokenRefresh(
+  cred: WorkbuddyCredential
+): Promise<WorkbuddyCredential> {
+  if (!cred.refreshToken) throw new Error("缺少 refresh_token，无法执行每日 token 刷新")
+
+  let lastError: unknown
+  for (const url of TOKEN_REFRESH_URLS) {
+    try {
+      const headers: Record<string, string> = {
         Authorization: `Bearer ${cred.accessToken}`,
         "X-Refresh-Token": cred.refreshToken,
+        "X-Auth-Refresh-Source": "workbuddy",
         "Content-Type": "application/json",
+        "User-Agent": CLIENT_UA,
       }
-    )) as Record<string, unknown>
-    const d = (data.data ?? {}) as Record<string, unknown>
-    const newAccessToken = strVal(d, ["accessToken", "access_token"])
-    if (!newAccessToken) return null
-    return {
-      accessToken: newAccessToken,
-      refreshToken: strVal(d, ["refreshToken", "refresh_token"]) || cred.refreshToken,
-      domain: strVal(d, ["domain"]) || cred.domain,
+      if (cred.enterpriseId) headers["X-Enterprise-Id"] = cred.enterpriseId
+
+      const raw = await postJson(url, {}, headers)
+      const d = unwrapEnvelope(raw, "刷新 token")
+      const newAccessToken = strVal(d, ["accessToken", "access_token"])
+      if (!newAccessToken) throw new Error("刷新响应缺少 accessToken")
+      return {
+        ...cred,
+        accessToken: newAccessToken,
+        refreshToken: strVal(d, ["refreshToken", "refresh_token"]) || cred.refreshToken,
+        domain: strVal(d, ["domain"]) || cred.domain,
+      }
+    } catch (error) {
+      lastError = error
     }
-  } catch {
-    return null
   }
+  throw lastError instanceof Error ? lastError : new Error("WorkBuddy token 刷新失败")
+}
+
+function unwrapEnvelope(raw: unknown, operation: string): Record<string, unknown> {
+  const root = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  if ("code" in root) {
+    const code = Number(root.code)
+    if (code !== 0 && code !== 200) {
+      const message = String(root.message ?? root.msg ?? "未知错误")
+      throw new Error(`${operation}失败(code=${code})：${message}`)
+    }
+  }
+  const data = root.data ?? root
+  return data && typeof data === "object" ? (data as Record<string, unknown>) : {}
+}
+
+function boolVal(obj: Record<string, unknown>, keys: string[]): boolean {
+  for (const key of keys) {
+    const value = obj[key]
+    if (typeof value === "boolean") return value
+    if (value === 1 || value === "1" || value === "true") return true
+  }
+  return false
+}
+
+function isAlreadyCheckedIn(message: string): boolean {
+  const lower = message.toLowerCase()
+  return lower.includes("already") || message.includes("已签") || message.includes("今日")
+}
+
+function isAuthError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /HTTP (401|403)|code=(401|403|12153)|Offline user session/i.test(message)
+}
+
+export interface WorkbuddyCheckinResult {
+  status: "success" | "already" | "inactive"
+  message: string
+  streakDays?: number
+  todayCredit?: number
+  configUpdate?: Record<string, string>
+}
+
+interface CheckinStatus {
+  active: boolean
+  todayCheckedIn: boolean
+  streakDays?: number
+  todayCredit?: number
+}
+
+async function fetchCheckinStatus(cred: WorkbuddyCredential): Promise<CheckinStatus> {
+  let lastError: unknown
+  for (const path of [
+    "/v2/billing/meter/checkin-activity-status",
+    "/v2/billing/meter/checkin-status",
+  ]) {
+    try {
+      const data = unwrapEnvelope(
+        await postJson(`${API_BASE}${path}`, {}, authHeaders(cred)),
+        "查询签到状态"
+      )
+      return {
+        active: boolVal(data, ["active", "Active"]),
+        todayCheckedIn: boolVal(data, ["today_checked_in", "todayCheckedIn"]),
+        streakDays: parseNum(data.streak_days ?? data.streakDays) ?? undefined,
+        todayCredit: parseNum(data.today_credit ?? data.todayCredit) ?? undefined,
+      }
+    } catch (error) {
+      if (isAuthError(error)) throw error
+      lastError = error
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("查询签到状态失败")
+}
+
+async function performCheckin(cred: WorkbuddyCredential): Promise<Record<string, unknown>> {
+  const raw = await postJson(
+    `${API_BASE}/v2/billing/meter/daily-checkin`,
+    {},
+    authHeaders(cred)
+  )
+  const root = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const code = "code" in root ? Number(root.code) : 0
+  const message = String(root.message ?? root.msg ?? "")
+  if (code !== 0 && code !== 200) {
+    if (isAlreadyCheckedIn(message)) return { already: true, message }
+    throw new Error(`执行签到失败(code=${code})：${message || "未知错误"}`)
+  }
+  return unwrapEnvelope(root, "执行签到")
+}
+
+async function checkInWithCredential(
+  cred: WorkbuddyCredential
+): Promise<WorkbuddyCheckinResult> {
+  let status: CheckinStatus | null = null
+  try {
+    status = await fetchCheckinStatus(cred)
+  } catch (error) {
+    if (isAuthError(error)) throw error
+    // 上游签到接口幂等；状态接口瞬时失败时仍尝试签到。
+  }
+
+  if (status?.todayCheckedIn) {
+    return {
+      status: "already",
+      message: "今日已签到",
+      streakDays: status.streakDays,
+      todayCredit: status.todayCredit,
+    }
+  }
+  if (status && !status.active) {
+    return { status: "inactive", message: "签到活动未开启" }
+  }
+
+  const result = await performCheckin(cred)
+  const already = result.already === true || isAlreadyCheckedIn(String(result.message ?? ""))
+  let latest: CheckinStatus | null = null
+  try {
+    latest = await fetchCheckinStatus(cred)
+  } catch {
+    // 签到已经成功，状态刷新失败不影响本次结果。
+  }
+  return {
+    status: already ? "already" : "success",
+    message: already ? "今日已签到" : String(result.message ?? "签到成功"),
+    streakDays: latest?.streakDays ?? parseNum(result.streak_days ?? result.streakDays) ?? undefined,
+    todayCredit: latest?.todayCredit ?? parseNum(result.today_credit ?? result.todayCredit) ?? undefined,
+  }
+}
+
+export async function checkInWorkbuddy(
+  config: Record<string, string>
+): Promise<WorkbuddyCheckinResult> {
+  const original = parseWorkbuddyCredential(config.content ?? "")
+  try {
+    return await checkInWithCredential(original)
+  } catch (error) {
+    if (!isAuthError(error) || !original.refreshToken) throw error
+    const refreshed = await requestTokenRefresh(original)
+    return {
+      ...(await checkInWithCredential(refreshed)),
+      configUpdate: { content: serializeCredential(refreshed) },
+    }
+  }
+}
+
+export async function refreshWorkbuddyToken(
+  config: Record<string, string>
+): Promise<{ configUpdate: Record<string, string> }> {
+  const cred = parseWorkbuddyCredential(config.content ?? "")
+  const refreshed = await requestTokenRefresh(cred)
+  return { configUpdate: { content: serializeCredential(refreshed) } }
 }
 
 /** 解析数值（兼容 number / string） */
@@ -433,7 +619,7 @@ async function fetchUsage(cred: WorkbuddyCredential) {
 
 export const adapter: Adapter = async (config) => {
   const content = config.content ?? ""
-  const cred = parseCredential(content)
+  const cred = parseWorkbuddyCredential(content)
 
   // 尝试用 refresh_token 查询（失败则降级用原 token）
   let result
@@ -441,23 +627,15 @@ export const adapter: Adapter = async (config) => {
     result = await fetchUsage(cred)
   } catch (e) {
     // 查询失败时尝试刷新 token 后重试一次
-    const refreshed = await refreshToken(cred)
-    if (refreshed?.accessToken) {
-      const newCred = { ...cred, ...refreshed }
+    try {
+      const newCred = await requestTokenRefresh(cred)
       result = await fetchUsage(newCred)
       // 刷新成功，写回新凭证
-      const newContent = JSON.stringify({
-        access_token: refreshed.accessToken,
-        refresh_token: refreshed.refreshToken ?? cred.refreshToken,
-        uid: cred.uid,
-        email: cred.email,
-        nickname: cred.nickname,
-        enterprise_id: cred.enterpriseId,
-        domain: refreshed.domain ?? cred.domain,
-      })
+      const newContent = serializeCredential(newCred)
       return { ...result, configUpdate: { content: newContent } }
+    } catch {
+      throw e
     }
-    throw e
   }
 
   return result

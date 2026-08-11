@@ -69,6 +69,27 @@ export interface Balance {
   totalBalance?: number
 }
 
+export type AutomationRunStatus = "success" | "already" | "inactive" | "error"
+
+export interface WorkbuddyAutomationState {
+  checkin?: {
+    lastAttemptSlot: string
+    lastSuccessDate?: string
+    status: AutomationRunStatus
+    message: string
+    updatedAt: number
+    streakDays?: number
+    todayCredit?: number
+  }
+  tokenRefresh?: {
+    lastAttemptDate: string
+    lastSuccessDate?: string
+    status: "success" | "error"
+    message: string
+    updatedAt: number
+  }
+}
+
 /** 账号实例：一张卡片 */
 export interface Account {
   id: string
@@ -88,6 +109,8 @@ export interface Account {
   windows?: QuotaWindow[]
   balance?: Balance
   note?: string
+  /** WorkBuddy 服务端自动签到与 token 保活的最近运行状态 */
+  workbuddyAutomation?: WorkbuddyAutomationState
   /** 上次刷新时间戳（ms） */
   lastFetched: number
   updatedAt: string
