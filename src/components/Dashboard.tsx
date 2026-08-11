@@ -415,7 +415,7 @@ export default function Dashboard() {
         className={cn(
           "mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6",
           isFullscreen &&
-            "h-screen w-screen max-w-none overflow-y-auto bg-background pt-1 sm:pt-8"
+            "h-screen w-screen max-w-none overflow-y-auto bg-background pt-2 sm:pt-8"
         )}
       >
         {isFullscreen && (
