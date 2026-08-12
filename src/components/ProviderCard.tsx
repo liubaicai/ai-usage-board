@@ -239,11 +239,11 @@ export function ProviderCard({
             {p.balance.amount.toFixed(2)}
           </div>
           {/* 明细：赠送额度 / 合计（手机端隐藏以压缩卡片高度） */}
-          {(p.balance.granted !== undefined && p.balance.granted > 0) ||
+          {p.balance.granted !== undefined ||
           (p.balance.totalBalance !== undefined &&
             Math.abs(p.balance.totalBalance - p.balance.amount) > 0.005) ? (
             <dl className="mt-2 hidden space-y-1 border-t border-border pt-2 text-[10px] uppercase tracking-[0.12em] text-muted-foreground sm:mt-3 sm:block sm:pt-3">
-              {p.balance.granted !== undefined && p.balance.granted > 0 && (
+              {p.balance.granted !== undefined && (
                 <div className="flex justify-between">
                   <dt>赠送额度</dt>
                   <dd className="tabular-nums">

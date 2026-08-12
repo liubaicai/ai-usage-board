@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { VENDOR_MAP } from "@/vendors"
 import { apiClient } from "@/lib/client-api"
+import { applyColorTheme, readColorTheme } from "@/lib/appearance"
 import {
   REFRESH_OPTIONS,
   formatTime,
@@ -32,12 +33,21 @@ const LS_THEME = "ai-usage-theme"
 
 function useTheme() {
   const [dark, setDark] = useState(false)
-  // 用 ref 保存最新值，避免闭包过期；挂载时只读 class 同步状态，不写 localStorage
+  // 用 ref 保存最新值，避免闭包过期
   const darkRef = useRef(false)
   useEffect(() => {
-    const initial = document.documentElement.classList.contains("dark")
+    // 从 localStorage 读取而非 DOM class —— React 水合可能重置 inline 脚本设置的 class
+    let initial: boolean
+    try {
+      const stored = localStorage.getItem(LS_THEME)
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+      initial = stored === "dark" || (!stored && prefersDark)
+    } catch {
+      initial = document.documentElement.classList.contains("dark")
+    }
     darkRef.current = initial
     setDark(initial)
+    document.documentElement.classList.toggle("dark", initial)
   }, [])
   /** 切换并持久化：写 DOM 类 + localStorage 只在此处发生，避免挂载时用初始 false 覆盖存储 */
   const apply = (next: boolean) => {
@@ -201,6 +211,11 @@ export default function Dashboard() {
   }
   useEffect(() => {
     void loadState()
+  }, [])
+
+  // React 水合后重新应用配色主题 —— inline 脚本设置的 data-theme 可能被水合覆盖
+  useEffect(() => {
+    applyColorTheme(readColorTheme())
   }, [])
 
   /** 刷新单个账号：让后端发厂商请求，成功后合并返回的账号 */
