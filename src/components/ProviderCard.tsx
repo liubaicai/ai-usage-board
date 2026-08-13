@@ -85,6 +85,64 @@ function QuotaBar({
   )
 }
 
+/* 紧凑版进度条：窗口数 ≥3（如 OpenCode 5h/每周/每月）时使用。
+ * 百分比并入进度条同一行，去掉大数字行，整卡高度与 2 窗口卡片基本持平。 */
+function CompactQuotaBar({
+  window: w,
+  label,
+}: {
+  window: QuotaWindow | null
+  label?: string
+}) {
+  if (!w) {
+    return (
+      <div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
+            {label ?? "限额"}
+          </span>
+          <span className="text-[10px] tracking-[0.08em] text-muted-foreground/40">—</span>
+        </div>
+        <div className="mt-1 h-[3px] w-full bg-foreground/5" />
+      </div>
+    )
+  }
+  const danger = w.usedPercent >= 80
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          {w.label}
+        </span>
+        <span
+          className={cn(
+            "text-[10px] tracking-[0.08em] tabular-nums",
+            danger ? "text-accent" : "text-muted-foreground"
+          )}
+        >
+          {w.resetIn ? `重置 ${w.resetIn}` : ""}
+        </span>
+      </div>
+      <div className="mt-1 flex items-center gap-2 sm:mt-1.5">
+        <span
+          className={cn(
+            "shrink-0 text-sm font-bold leading-none tracking-tighter tabular-nums sm:text-base",
+            danger && "text-accent"
+          )}
+        >
+          {w.usedPercent}%
+        </span>
+        <div className="h-[3px] flex-1 bg-foreground/10">
+          <div
+            className={cn("h-full transition-all", danger ? "bg-accent" : "bg-foreground")}
+            style={{ width: `${Math.min(w.usedPercent, 100)}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StatusMark({ status }: { status: Account["status"] }) {
   if (status === "ok") return <span className="inline-block h-2 w-2 bg-foreground" />
   if (status === "warn") return <span className="inline-block h-2 w-2 bg-accent" />
@@ -146,6 +204,8 @@ export function ProviderCard({
             .map((w) => ({ key: w.id, label: w.label, w })),
         ]
       : windows.map((w) => ({ key: w.id, label: w.label, w }))
+  /** 窗口 ≥3（如 OpenCode 5h/每周/每月）时走紧凑模式，避免卡片过高 */
+  const compact = quotaBars.length >= 3
 
   return (
     <article
@@ -214,10 +274,19 @@ export function ProviderCard({
 
       {/* 主体：配额窗口（缺失的模板窗口显示灰色占位）或余额 */}
       {quotaBars.length > 0 && (
-        <div className="mt-2.5 space-y-2.5 sm:mt-5 sm:space-y-5">
-          {quotaBars.map((b) => (
-            <QuotaBar key={b.key} window={b.w} label={b.label} />
-          ))}
+        <div
+          className={cn(
+            "mt-2.5 sm:mt-5",
+            compact ? "space-y-2.5 sm:space-y-4" : "space-y-2.5 sm:space-y-5"
+          )}
+        >
+          {quotaBars.map((b) =>
+            compact ? (
+              <CompactQuotaBar key={b.key} window={b.w} label={b.label} />
+            ) : (
+              <QuotaBar key={b.key} window={b.w} label={b.label} />
+            )
+          )}
         </div>
       )}
 
