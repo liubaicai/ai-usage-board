@@ -1,137 +1,100 @@
-import { httpGetText } from "@/lib/http"
-import type { Adapter, FetchResult } from "@/lib/adapters"
+import { httpGetJson } from "@/lib/http"
+import type { Adapter } from "@/lib/adapters"
 import type { QuotaWindow, VendorDef } from "@/lib/types"
 
 /**
- * OpenCode（opencode.ai 工作区订阅）· 订阅制
- * 接入方式：粘贴 opencode.ai 网页 Cookie（session cookie）
- * 接口（CodexBar 逆向，server function）：
- *   GET https://opencode.ai/_server?id=<serverId>&args=[...]
- *   Headers: Cookie / X-Server-Id / X-Server-Instance / Origin: opencode.ai / Referer
- *   流程：workspaces（拿 wrk_ ID）→ subscription（args ["wrk_xxx"]）
- * 响应为 text/javascript 序列化对象，正则提取 rollingUsage/weeklyUsage 的 usagePercent + resetInSec。
+ * OpenCode（opencode.ai Go 订阅）· 订阅制
+ * 接入方式：opencode 控制台 Settings → API Keys 生成的 API Key（sk- 开头）
+ *
+ * 官方接口（2026-07 起，替代原 _server server-function 逆向接口）：
+ *   GET https://opencode.ai/zen/go/v1/usage
+ *   Headers: Authorization: Bearer <API Key>
+ * 响应：{ usage: { rolling: {percent, resetsAt}, weekly: {...}, monthly: {...} } }
+ * percent 为整数百分比，resetsAt 为 ISO8601 时间。
  */
 export const opencode: VendorDef = {
   id: "opencode",
   name: "OpenCode",
   vendor: "OpenCode",
   kind: "subscription",
-  authType: "cookie",
+  authType: "apikey",
   windowTemplates: [
     { id: "oc-5h", label: "5 小时限额" },
     { id: "oc-weekly", label: "每周限额" },
+    { id: "oc-monthly", label: "每月限额" },
   ],
   fields: [
     {
-      key: "content",
-      label: "网页 Cookie",
-      placeholder: "粘贴 opencode.ai 的会话 Cookie（含 auth/session 令牌）",
-      multiline: true,
+      key: "apiKey",
+      label: "API Key",
+      placeholder: "sk-...（opencode 控制台 Settings → API Keys 生成）",
       secret: true,
       required: true,
     },
   ],
 }
 
-const SERVER = "https://opencode.ai/_server"
-const WS_ID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
-const SUB_ID = "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4"
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+const USAGE_API = "https://opencode.ai/zen/go/v1/usage"
 
-function serverUrl(serverId: string, args: unknown[]): string {
-  const params = new URLSearchParams({ id: serverId })
-  if (args.length) params.set("args", JSON.stringify(args))
-  return `${SERVER}?${params.toString()}`
+interface UsageItem {
+  percent?: number
+  resetsAt?: string
 }
 
-function headers(cookie: string, serverId: string, referer: string): Record<string, string> {
-  return {
-    Cookie: cookie,
-    "X-Server-Id": serverId,
-    "X-Server-Instance": `server-fn:${crypto.randomUUID()}`,
-    "User-Agent": UA,
-    Origin: "https://opencode.ai",
-    Referer: referer,
-    Accept: "text/javascript, application/json;q=0.9, */*;q=0.8",
-  }
-}
-
-function extractDouble(text: string, field: string, key: string): number | undefined {
-  const re = new RegExp(`${field}[^}]*?${key}\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)`)
-  const m = text.match(re)
-  return m ? Number(m[1]) : undefined
-}
-
-/** 宽松解析：优先 JSON，失败正则提取 */
-function parseSubscription(text: string): { rolling?: QuotaWindow; weekly?: QuotaWindow } {
-  // 未登录检测
-  if (/(login|sign in|auth\/authorize|not associated with an account|actor of type "public")/i.test(text)) {
-    throw new Error("Cookie 无效或未登录（响应提示需要登录），请检查 Cookie 是否过期")
-  }
-  // 正则提取（text/javascript 序列化对象）
-  const rollPct = extractDouble(text, "rollingUsage", "usagePercent")
-  const rollReset = extractDouble(text, "rollingUsage", "resetInSec")
-  const weekPct = extractDouble(text, "weeklyUsage", "usagePercent")
-  const weekReset = extractDouble(text, "weeklyUsage", "resetInSec")
-
-  const fmtReset = (sec?: number) => {
-    if (sec === undefined) return undefined
-    const ms = sec * 1000
-    if (ms <= 0) return "即将重置"
-    const h = Math.floor(ms / 3_600_000)
-    const m = Math.floor((ms % 3_600_000) / 60_000)
-    return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`
-  }
-  const windows: QuotaWindow[] = []
-  if (rollPct !== undefined) {
-    windows.push({
-      id: "oc-5h",
-      label: "5 小时限额",
-      usedPercent: Math.min(100, Math.max(0, Math.round(rollPct))),
-      resetIn: fmtReset(rollReset),
-    })
-  }
-  if (weekPct !== undefined) {
-    windows.push({
-      id: "oc-weekly",
-      label: "每周限额",
-      usedPercent: Math.min(100, Math.max(0, Math.round(weekPct))),
-      resetIn: fmtReset(weekReset),
-    })
-  }
-  return { rolling: windows[0], weekly: windows[1] }
+const fmtReset = (resetsAt?: string): string | undefined => {
+  if (!resetsAt) return undefined
+  const ms = Date.parse(resetsAt) - Date.now()
+  if (Number.isNaN(ms)) return undefined
+  if (ms <= 0) return "即将重置"
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`
 }
 
 export const adapter: Adapter = async (config) => {
-  const cookie = (config.content ?? "").trim()
-  if (!cookie) throw new Error("缺少网页 Cookie，请在编辑中粘贴")
-
-  // 1) 拿工作区列表
-  const wsText = await httpGetText(
-    serverUrl(WS_ID, []),
-    headers(cookie, WS_ID, "https://opencode.ai")
-  )
-  const wsMatch = wsText.match(/wrk_[A-Z0-9]+/g)
-  const workspaceId = config.workspaceId?.trim() || (wsMatch ? wsMatch[0] : undefined)
-  if (!workspaceId) {
+  const apiKey = config.apiKey?.trim()
+  if (!apiKey) {
     throw new Error(
-      `未找到工作区 ID（Cookie 可能无效）：${wsText.slice(0, 150)}`
+      "缺少 API Key：请在编辑中填入 opencode 控制台 Settings → API Keys 生成的密钥（旧版 Cookie 方式已失效）"
     )
   }
 
-  // 2) 查订阅用量
-  const subText = await httpGetText(
-    serverUrl(SUB_ID, [workspaceId]),
-    headers(cookie, SUB_ID, `https://opencode.ai/workspace/${workspaceId}/billing`)
-  )
-  const { rolling, weekly } = parseSubscription(subText)
-  if (!rolling && !weekly) {
-    throw new Error(
-      `响应缺少用量字段（Cookie 可能无效或无订阅）：${subText.slice(0, 200)}`
-    )
+  let data: unknown
+  try {
+    data = await httpGetJson(USAGE_API, { Authorization: `Bearer ${apiKey}` })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : ""
+    if (/401|403/.test(msg)) throw new Error("API Key 无效或已过期，请重新生成")
+    throw e
   }
+
+  const usage = (data as { usage?: Record<string, UsageItem> })?.usage
+  if (!usage || typeof usage !== "object") {
+    throw new Error(`响应缺少 usage 字段：${JSON.stringify(data).slice(0, 200)}`)
+  }
+
+  // 官方 API 三个窗口：rolling(5h) / weekly / monthly
+  const slots: { key: string; id: string; label: string }[] = [
+    { key: "rolling", id: "oc-5h", label: "5 小时限额" },
+    { key: "weekly", id: "oc-weekly", label: "每周限额" },
+    { key: "monthly", id: "oc-monthly", label: "每月限额" },
+  ]
   const windows: QuotaWindow[] = []
-  if (rolling) windows.push(rolling)
-  if (weekly) windows.push(weekly)
-  return { windows, status: "ok", note: "OpenCode 订阅用量", plan: "OpenCode" }
+  for (const slot of slots) {
+    const item = usage[slot.key]
+    if (item && typeof item.percent === "number" && !Number.isNaN(item.percent)) {
+      windows.push({
+        id: slot.id,
+        label: slot.label,
+        usedPercent: Math.min(100, Math.max(0, Math.round(item.percent))),
+        resetIn: fmtReset(item.resetsAt),
+      })
+    }
+  }
+  if (!windows.length) {
+    throw new Error(
+      `响应缺少用量字段（API Key 可能无 Go 订阅）：${JSON.stringify(usage).slice(0, 200)}`
+    )
+  }
+  return { windows, status: "ok", note: "OpenCode Go 订阅用量", plan: "OpenCode Go" }
 }
