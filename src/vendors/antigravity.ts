@@ -11,6 +11,9 @@ import type { QuotaWindow, VendorDef } from "@/lib/types"
  * 流程：刷新 access_token（oauth2.googleapis.com/token，默认用 Antigravity 内置 OAuth client）→
  *   POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist（拿套餐 / 项目 ID）→
  *   POST v1internal:fetchAvailableModels → models[].quotaInfo.remainingFraction / resetTime
+ * 展示（与官方 /usage 一致）：仅统计 Gemini 模型，
+ *   「5 小时限额」= Gemini 中剩余最低者（真实数据）；
+ *   「每周限额」= 官方 API 未暴露该维度，模板占位（不造假）。
  * Antigravity 配额为按模型计（fraction 0.0-1.0，1.0 = 全部剩余），5 小时窗口。
  */
 
@@ -41,6 +44,11 @@ export const antigravity: VendorDef = {
   kind: "subscription",
   authType: "json",
   defaultPlan: "Pro",
+  // 与官方 /usage 一致的两个窗口：5 小时限额（真实）+ 每周限额（API 未暴露，占位）
+  windowTemplates: [
+    { id: "antigravity-5h", label: "5 小时限额" },
+    { id: "antigravity-weekly", label: "每周限额" },
+  ],
   fields: [
     {
       key: "content",
@@ -279,21 +287,33 @@ export const adapter: Adapter = async (config) => {
     throw new Error("响应中未发现带配额的用户模型（可能接口变更或 token 无权限）")
   }
 
-  // 4) 组装窗口：剩余比例最低的模型排最前
-  rows.sort((a, b) => a.remaining - b.remaining)
-  const windows: QuotaWindow[] = rows.map((r) => ({
-    id: `antigravity-${r.id}`,
-    label: r.displayName,
-    usedPercent: Math.min(100, Math.max(0, Math.round((1 - r.remaining) * 100))),
-    resetIn: formatResetIn(r.resetTime),
-    detail: r.resetTime ? undefined : "暂无重置时间",
-  }))
+  // 4) 只统计 Gemini 模型（用户仅关注 Gemini 额度；无 Gemini 时降级用全部，note 说明）
+  let geminiRows = rows.filter(
+    (r) => /gemini/i.test(r.displayName) || /gemini/i.test(r.id)
+  )
+  const geminiOnly = geminiRows.length > 0
+  if (!geminiOnly) geminiRows = rows
+  geminiRows.sort((a, b) => a.remaining - b.remaining)
+
+  // 5) 聚合窗口：5 小时限额取 Gemini 中剩余最低者（瓶颈）；每周限额 API 未暴露，不返回（模板占位）
+  const bottleneck = geminiRows[0]
+  const windows: QuotaWindow[] = [
+    {
+      id: "antigravity-5h",
+      label: "5 小时限额",
+      usedPercent: Math.min(100, Math.max(0, Math.round((1 - bottleneck.remaining) * 100))),
+      resetIn: formatResetIn(bottleneck.resetTime),
+      detail: geminiOnly ? "Gemini 模型" : "非 Gemini 模型",
+    },
+  ]
 
   const result: FetchResult = {
     windows,
     plan: plan || undefined,
     status: "ok",
-    note: `共 ${rows.length} 个模型，按剩余从低到高`,
+    note: geminiOnly
+      ? `Gemini ${geminiRows.length} 个模型，取剩余最低显示`
+      : "未发现 Gemini 模型，已降级显示全部模型",
   }
   const email = emailFromIdToken(cred.idToken)
   if (email) result.accountName = email
