@@ -4,7 +4,7 @@ release/
 dist-electron/
 src-tauri/target/
 src-tauri/gen/schemas/
-.next/
+.next*/
 out/
 coverage/
 *.log

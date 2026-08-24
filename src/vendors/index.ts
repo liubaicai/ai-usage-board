@@ -1,6 +1,7 @@
 import type { Adapter } from "@/lib/adapters"
 import type { VendorDef } from "@/lib/types"
 
+import { adapter as antigravityAdapter, antigravity } from "./antigravity"
 import { adapter as claudeAdapter, claude } from "./claude"
 import { adapter as codexAdapter, codex } from "./codex"
 import { adapter as copilotAdapter, copilot } from "./copilot"
@@ -27,6 +28,7 @@ import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
  */
 export const VENDORS: VendorDef[] = [
   codex,
+  antigravity,
   claude,
   copilot,
   gemini,
@@ -51,6 +53,7 @@ export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
 /** 厂商适配器注册表：vendorId → Adapter（与厂商文件一一对应） */
 export const ADAPTERS: Record<string, Adapter> = {
   [codex.id]: codexAdapter,
+  [antigravity.id]: antigravityAdapter,
   [claude.id]: claudeAdapter,
   [copilot.id]: copilotAdapter,
   [gemini.id]: geminiAdapter,
