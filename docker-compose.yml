@@ -12,6 +12,9 @@ services:
       - ./data:/app/data
     environment:
       - NODE_ENV=production
+      # Antigravity OAuth client secret（Google 账号接入用，从宿主环境读取）
+      # 部署前先 export ANTIGRAVITY_CLIENT_SECRET=<值>，再 docker compose up -d
+      - ANTIGRAVITY_CLIENT_SECRET=${ANTIGRAVITY_CLIENT_SECRET:-}
       # - TZ=Asia/Shanghai   # 如需要可指定容器时区
 
     # 容器内用户 uid=1000，如宿主机 ./data 属主不是 1000 则需覆盖。
