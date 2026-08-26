@@ -86,23 +86,28 @@ function QuotaBar({
 }
 
 /* 紧凑版进度条：窗口数 ≥3（如 OpenCode 5h/每周/每月）时使用。
- * 百分比并入进度条同一行，去掉大数字行，整卡高度与 2 窗口卡片基本持平。 */
+ * 百分比并入进度条同一行，去掉大数字行，整卡高度与 2 窗口卡片基本持平。
+ * hideLabel 时去掉顶部窗口名（仅保留重置时间），供分组行（Antigravity 5h|每周）在窄屏使用。 */
 function CompactQuotaBar({
   window: w,
   label,
+  hideLabel,
 }: {
   window: QuotaWindow | null
   label?: string
+  hideLabel?: boolean
 }) {
   if (!w) {
     return (
       <div>
-        <div className="flex items-baseline justify-between">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
-            {label ?? "限额"}
-          </span>
-          <span className="text-[10px] tracking-[0.08em] text-muted-foreground/40">—</span>
-        </div>
+        {!hideLabel && (
+          <div className="flex items-baseline justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/50">
+              {label ?? "限额"}
+            </span>
+            <span className="text-[10px] tracking-[0.08em] text-muted-foreground/40">—</span>
+          </div>
+        )}
         <div className="mt-1 h-[3px] w-full bg-foreground/5" />
       </div>
     )
@@ -110,10 +115,17 @@ function CompactQuotaBar({
   const danger = w.usedPercent >= 80
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          {w.label}
-        </span>
+      <div
+        className={cn(
+          "flex items-baseline gap-1",
+          hideLabel ? "justify-end" : "justify-between"
+        )}
+      >
+        {!hideLabel && (
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            {w.label}
+          </span>
+        )}
         <span
           className={cn(
             "text-[10px] tracking-[0.08em] tabular-nums",
@@ -305,7 +317,7 @@ export function ProviderCard({
               </div>
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 {row.bars.map((b) => (
-                  <CompactQuotaBar key={b.key} window={b.w} label={b.label} />
+                  <CompactQuotaBar key={b.key} window={b.w} label={b.label} hideLabel />
                 ))}
               </div>
             </div>
