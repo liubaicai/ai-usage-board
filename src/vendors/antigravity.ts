@@ -10,11 +10,11 @@ import type { QuotaWindow, VendorDef } from "@/lib/types"
  *  - Windows: token 存于系统凭据管理器，可先在任一 Linux/macOS 机器登录 agy 后拷贝 token 文件
  * 流程：刷新 access_token（oauth2.googleapis.com/token，默认用 Antigravity 内置 OAuth client）→
  *   POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist（拿套餐 / 项目 ID）→
- *   POST v1internal:fetchAvailableModels → models[].quotaInfo.remainingFraction / resetTime
- * 展示（与官方 /usage 一致）：仅统计 Gemini 模型，
- *   「5 小时限额」= Gemini 中剩余最低者（真实数据）；
- *   「每周限额」= 官方 API 未暴露该维度，模板占位（不造假）。
- * Antigravity 配额为按模型计（fraction 0.0-1.0，1.0 = 全部剩余），5 小时窗口。
+ *   POST v1internal:retrieveUserQuotaSummary（分组配额摘要，**唯一暴露每周限额的公开接口**，
+ *     响应 groups[].buckets[].window ∈ {5h, weekly} + remainingFraction/resetTime）
+ * 展示（与官方 /usage 一致）：仅统计 Gemini 组，「5 小时限额」与「每周限额」均为真实数据；
+ *   retrieveUserQuotaSummary 不可用时回退 fetchAvailableModels（5h 真实 + 每周占位）。
+ * Antigravity 配额为按模型计（fraction 0.0-1.0，1.0 = 全部剩余），5 小时 / 每周窗口。
  */
 
 /**
@@ -249,6 +249,105 @@ function formatResetIn(resetTime?: string): string | undefined {
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`
 }
 
+/**
+ * 分组配额摘要接口（管理界面 Cli-Proxy-API-Management-Center 实证）：
+ * POST /v1internal:retrieveUserQuotaSummary → { groups: [{ displayName, buckets:
+ * [{ window: "5h"|"weekly", remainingFraction, resetTime, displayName }] }] }
+ * 这是唯一暴露「每周限额」的公开接口；三 URL 主备切换，UA 仿官方 CLI。
+ */
+const QUOTA_SUMMARY_URLS = [
+  "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+  "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary",
+  "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary",
+]
+const ANTIGRAVITY_CLI_UA =
+  "antigravity/cli/1.0.13 (aidev_client; os_type=darwin; arch=arm64)"
+
+interface QuotaBucket {
+  window?: string
+  remainingFraction?: number
+  resetTime?: string
+  displayName?: string
+}
+
+interface QuotaGroup {
+  displayName?: string
+  buckets?: QuotaBucket[]
+}
+
+async function fetchQuotaSummary(
+  accessToken: string,
+  projectId?: string
+): Promise<QuotaGroup[]> {
+  let lastErr: unknown
+  for (const url of QUOTA_SUMMARY_URLS) {
+    try {
+      const data = (await postJson(
+        url,
+        projectId ? { project: projectId } : {},
+        {
+          Authorization: `Bearer ${accessToken}`,
+          "User-Agent": ANTIGRAVITY_CLI_UA,
+        }
+      )) as Record<string, unknown>
+      const groups = data.groups
+      if (Array.isArray(groups) && groups.length) {
+        return groups as QuotaGroup[]
+      }
+      lastErr = new Error("响应缺少 groups")
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw lastErr ?? new Error("retrieveUserQuotaSummary 请求失败")
+}
+
+/** 按 window 取值（5h / weekly 等）取组内配额桶 */
+function pickBucket(group: QuotaGroup | undefined, windows: string[]): QuotaBucket | undefined {
+  if (!group) return undefined
+  const buckets = Array.isArray(group.buckets) ? group.buckets : []
+  const norm = (w: string | undefined) => (w ?? "").trim().toLowerCase()
+  return buckets.find((b) => windows.some((w) => norm(b.window) === w))
+}
+
+/** 从分组摘要组装 5h + 每周两个真实窗口（仅 Gemini 组）；返回 null 表示数据不完整 */
+function windowsFromSummary(
+  groups: QuotaGroup[]
+): { windows: QuotaWindow[]; note: string } | null {
+  const geminiGroup = groups.find((g) => /gemini/i.test(g.displayName ?? ""))
+  const group = geminiGroup ?? groups[0]
+  const b5 = pickBucket(group, ["5h", "five-hour", "five_hour"])
+  const bWeek = pickBucket(group, ["weekly", "week"])
+  const windows: QuotaWindow[] = []
+  const frac = (b: QuotaBucket | undefined) =>
+    typeof b?.remainingFraction === "number" && Number.isFinite(b.remainingFraction)
+      ? b.remainingFraction
+      : null
+  const f5 = frac(b5)
+  const fw = frac(bWeek)
+  if (f5 !== null) {
+    windows.push({
+      id: "antigravity-5h",
+      label: "5 小时限额",
+      usedPercent: Math.min(100, Math.max(0, Math.round((1 - f5) * 100))),
+      resetIn: formatResetIn(b5?.resetTime),
+    })
+  }
+  if (fw !== null) {
+    windows.push({
+      id: "antigravity-weekly",
+      label: "每周限额",
+      usedPercent: Math.min(100, Math.max(0, Math.round((1 - fw) * 100))),
+      resetIn: formatResetIn(bWeek?.resetTime),
+    })
+  }
+  if (!windows.length) return null
+  return {
+    windows,
+    note: geminiGroup ? "Gemini 组配额" : "未发现 Gemini 组，显示首个分组",
+  }
+}
+
 export const adapter: Adapter = async (config) => {
   const content = (config.content ?? "").trim()
   if (!content) throw new Error("缺少 agy 登录 token JSON，请在编辑中粘贴")
@@ -281,40 +380,51 @@ export const adapter: Adapter = async (config) => {
   const { projectId: autoProject, plan } = await loadCodeAssist(accessToken)
   const projectId = (config.projectId ?? "").trim() || autoProject
 
-  // 3) 各模型配额
-  const rows = await fetchAvailableModels(accessToken, projectId)
-  if (!rows.length) {
-    throw new Error("响应中未发现带配额的用户模型（可能接口变更或 token 无权限）")
+  // 3) 优先用分组配额摘要接口（唯一暴露「每周限额」的公开接口）
+  let summaryResult: { windows: QuotaWindow[]; note: string } | null = null
+  try {
+    const groups = await fetchQuotaSummary(accessToken, projectId)
+    summaryResult = windowsFromSummary(groups)
+  } catch (e) {
+    // 接口不可用时回退到逐模型查询
+    summaryResult = null
   }
 
-  // 4) 只统计 Gemini 模型（用户仅关注 Gemini 额度；无 Gemini 时降级用全部，note 说明）
-  let geminiRows = rows.filter(
-    (r) => /gemini/i.test(r.displayName) || /gemini/i.test(r.id)
-  )
-  const geminiOnly = geminiRows.length > 0
-  if (!geminiOnly) geminiRows = rows
-  geminiRows.sort((a, b) => a.remaining - b.remaining)
-
-  // 5) 聚合窗口：5 小时限额取 Gemini 中剩余最低者（瓶颈）；每周限额 API 未暴露，不返回（模板占位）
-  const bottleneck = geminiRows[0]
-  const windows: QuotaWindow[] = [
-    {
-      id: "antigravity-5h",
-      label: "5 小时限额",
-      usedPercent: Math.min(100, Math.max(0, Math.round((1 - bottleneck.remaining) * 100))),
-      resetIn: formatResetIn(bottleneck.resetTime),
-      detail: geminiOnly ? "Gemini 模型" : "非 Gemini 模型",
-    },
-  ]
-
-  const result: FetchResult = {
-    windows,
-    plan: plan || undefined,
-    status: "ok",
-    note: geminiOnly
+  let windows: QuotaWindow[]
+  let note: string
+  let result: FetchResult
+  if (summaryResult) {
+    windows = summaryResult.windows
+    note = summaryResult.note
+    result = { windows, plan: plan || undefined, status: "ok", note }
+  } else {
+    // 4) 回退：fetchAvailableModels，只统计 Gemini 模型，5h 取剩余最低者；每周占位
+    const rows = await fetchAvailableModels(accessToken, projectId)
+    if (!rows.length) {
+      throw new Error("响应中未发现带配额的用户模型（可能接口变更或 token 无权限）")
+    }
+    let geminiRows = rows.filter(
+      (r) => /gemini/i.test(r.displayName) || /gemini/i.test(r.id)
+    )
+    const geminiOnly = geminiRows.length > 0
+    if (!geminiOnly) geminiRows = rows
+    geminiRows.sort((a, b) => a.remaining - b.remaining)
+    const bottleneck = geminiRows[0]
+    windows = [
+      {
+        id: "antigravity-5h",
+        label: "5 小时限额",
+        usedPercent: Math.min(100, Math.max(0, Math.round((1 - bottleneck.remaining) * 100))),
+        resetIn: formatResetIn(bottleneck.resetTime),
+        detail: geminiOnly ? "Gemini 模型" : "非 Gemini 模型",
+      },
+    ]
+    note = geminiOnly
       ? `Gemini ${geminiRows.length} 个模型，取剩余最低显示`
-      : "未发现 Gemini 模型，已降级显示全部模型",
+      : "未发现 Gemini 模型，已降级显示全部模型"
+    result = { windows, plan: plan || undefined, status: "ok", note }
   }
+
   const email = emailFromIdToken(cred.idToken)
   if (email) result.accountName = email
   return result
