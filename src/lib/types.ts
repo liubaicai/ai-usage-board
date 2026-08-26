@@ -59,6 +59,8 @@ export interface QuotaWindow {
   usedPercent: number
   resetIn?: string
   detail?: string
+  /** 分组名（如 Antigravity 的 Gemini / Claude & GPT）：存在时卡片按组同行渲染 5h+周限 */
+  group?: string
 }
 
 /** 按量付费余额 */

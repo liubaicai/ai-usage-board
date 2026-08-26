@@ -207,6 +207,29 @@ export function ProviderCard({
   /** 窗口 ≥3（如 OpenCode 5h/每周/每月）时走紧凑模式，避免卡片过高 */
   const compact = quotaBars.length >= 3
 
+  /** 分组窗口（带 group 字段，如 Antigravity 的 Gemini / Claude & GPT）：每组一行，行内左 5h 右周限 */
+  const hasGroups = windows.some((w) => w.group)
+  const groupRows: { name: string; bars: { key: string; label: string; w: QuotaWindow | null }[] }[] =
+    []
+  if (hasGroups) {
+    const order: string[] = []
+    const byGroup = new Map<string, QuotaWindow[]>()
+    for (const w of windows) {
+      const g = w.group ?? "Quota"
+      if (!byGroup.has(g)) {
+        byGroup.set(g, [])
+        order.push(g)
+      }
+      byGroup.get(g)!.push(w)
+    }
+    for (const name of order) {
+      groupRows.push({
+        name,
+        bars: byGroup.get(name)!.map((w) => ({ key: w.id, label: w.label, w })),
+      })
+    }
+  }
+
   return (
     <article
       ref={setNodeRef}
@@ -272,22 +295,39 @@ export function ProviderCard({
         </p>
       )}
 
-      {/* 主体：配额窗口（缺失的模板窗口显示灰色占位）或余额 */}
-      {quotaBars.length > 0 && (
-        <div
-          className={cn(
-            "mt-2.5 sm:mt-5",
-            compact ? "space-y-2.5 sm:space-y-4" : "space-y-2.5 sm:space-y-5"
-          )}
-        >
-          {quotaBars.map((b) =>
-            compact ? (
-              <CompactQuotaBar key={b.key} window={b.w} label={b.label} />
-            ) : (
-              <QuotaBar key={b.key} window={b.w} label={b.label} />
-            )
-          )}
+      {/* 主体：分组窗口（每组一行：左 5h 右周限）优先；否则普通配额窗口/余额 */}
+      {hasGroups ? (
+        <div className="mt-2.5 space-y-3 sm:mt-5 sm:space-y-4">
+          {groupRows.map((row) => (
+            <div key={row.name}>
+              <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {row.name}
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                {row.bars.map((b) => (
+                  <CompactQuotaBar key={b.key} window={b.w} label={b.label} />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+      ) : (
+        quotaBars.length > 0 && (
+          <div
+            className={cn(
+              "mt-2.5 sm:mt-5",
+              compact ? "space-y-2.5 sm:space-y-4" : "space-y-2.5 sm:space-y-5"
+            )}
+          >
+            {quotaBars.map((b) =>
+              compact ? (
+                <CompactQuotaBar key={b.key} window={b.w} label={b.label} />
+              ) : (
+                <QuotaBar key={b.key} window={b.w} label={b.label} />
+              )
+            )}
+          </div>
+        )
       )}
 
       {p.balance && (
