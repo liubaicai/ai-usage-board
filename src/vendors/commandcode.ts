@@ -11,8 +11,11 @@ import type { QuotaWindow, VendorDef } from "@/lib/types"
  * 接口（与官网 dashboard 同源，社区 HermesAgentBar 实证）：
  *   GET https://api.commandcode.ai/internal/billing/credits
  *   Headers: Cookie + Origin/Referer: https://commandcode.ai/（浏览器 UA）
- * 响应：{ windowLimits: { fiveHour: {used,cap,resetAt}, weekly: {used,cap,resetAt} } }
+ * 响应：
+ *   { credits: { monthlyCredits, premiumMonthlyCredits, opensourceMonthlyCredits, purchasedCredits },
+ *     windowLimits: { fiveHour: {used,cap,resetAt}, weekly: {used,cap,resetAt} } }
  *   used/cap 为 USD 金额，resetAt 为毫秒时间戳；usedPercent = used/cap。
+ *   月度池为可滚存/购买的余额（无固定 cap），以 Balance 形式展示（月度 credits 剩余）。
  */
 export const commandcode: VendorDef = {
   id: "commandcode",
@@ -111,6 +114,17 @@ export const adapter: Adapter = async (config) => {
   }
 
   const result: FetchResult = { windows, status: "ok", note: "Command Code 订阅" }
+
+  // 月度 credits 池（剩余余额，可滚存/购买，无固定 cap → 以 Balance 展示）
+  const creditsObj = (data.credits ?? {}) as Record<string, unknown>
+  const monthlyCredits =
+    typeof creditsObj.monthlyCredits === "number" && creditsObj.monthlyCredits > 0
+      ? creditsObj.monthlyCredits
+      : undefined
+  if (monthlyCredits !== undefined) {
+    result.balance = { amount: monthlyCredits, currency: "USD" }
+  }
+
   const strField = (key: string): string | undefined => {
     const v = (data as Record<string, unknown>)[key]
     return typeof v === "string" && v ? v : undefined
