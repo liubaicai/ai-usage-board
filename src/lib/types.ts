@@ -47,6 +47,8 @@ export interface VendorDef {
   defaultPlan?: string
   currency?: "CNY" | "USD"
   windowTemplates?: WindowTemplate[]
+  /** 强制紧凑布局（OpenCode 同款紧凑横条）：窗口数不足 3 也走 CompactQuotaBar（如 Command Code） */
+  compact?: boolean
   /** 可选：设备授权流程标识（Codex / Copilot），存在时对话框渲染 OAuth 授权面板 */
   oauthFlow?: "codex" | "copilot" | "workbuddy"
   fields: ConfigField[]

@@ -216,8 +216,8 @@ export function ProviderCard({
             .map((w) => ({ key: w.id, label: w.label, w })),
         ]
       : windows.map((w) => ({ key: w.id, label: w.label, w }))
-  /** 窗口 ≥3（如 OpenCode 5h/每周/每月）时走紧凑模式，避免卡片过高 */
-  const compact = quotaBars.length >= 3
+  /** 窗口 ≥3（如 OpenCode 5h/每周/每月）或厂商声明 compact 时走紧凑模式，避免卡片过高 */
+  const compact = quotaBars.length >= 3 || vendor.compact === true
 
   /** 分组窗口（带 group 字段，如 Antigravity 的 Gemini / Claude & GPT）：每组一行，行内左 5h 右周限 */
   const hasGroups = windows.some((w) => w.group)

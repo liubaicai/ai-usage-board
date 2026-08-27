@@ -24,6 +24,8 @@ export const commandcode: VendorDef = {
   kind: "subscription",
   authType: "cookie",
   defaultPlan: "Go",
+  // 2 窗口 + 余额共 3 行过高：强制 OpenCode 同款紧凑布局
+  compact: true,
   windowTemplates: [
     { id: "cc-5h", label: "5 小时限额" },
     { id: "cc-weekly", label: "每周限额" },
