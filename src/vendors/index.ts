@@ -4,6 +4,7 @@ import type { VendorDef } from "@/lib/types"
 import { adapter as antigravityAdapter, antigravity } from "./antigravity"
 import { adapter as claudeAdapter, claude } from "./claude"
 import { adapter as codexAdapter, codex } from "./codex"
+import { adapter as commandcodeAdapter, commandcode } from "./commandcode"
 import { adapter as copilotAdapter, copilot } from "./copilot"
 import { adapter as cursorAdapter, cursor } from "./cursor"
 import { adapter as deepseekAdapter, deepseek } from "./deepseek"
@@ -29,6 +30,7 @@ import { adapter as zhipuCodingAdapter, zhipuCoding } from "./zhipu-coding"
 export const VENDORS: VendorDef[] = [
   codex,
   antigravity,
+  commandcode,
   claude,
   copilot,
   gemini,
@@ -54,6 +56,7 @@ export const VENDOR_MAP: Record<string, VendorDef> = Object.fromEntries(
 export const ADAPTERS: Record<string, Adapter> = {
   [codex.id]: codexAdapter,
   [antigravity.id]: antigravityAdapter,
+  [commandcode.id]: commandcodeAdapter,
   [claude.id]: claudeAdapter,
   [copilot.id]: copilotAdapter,
   [gemini.id]: geminiAdapter,
