@@ -109,20 +109,23 @@ export const adapter: Adapter = async (config) => {
   }
   pushWindow("cc-5h", "5 小时限额", fh)
   pushWindow("cc-weekly", "每周限额", wk)
-  if (!windows.length) {
-    throw new Error(`计费接口缺少窗口数据：${JSON.stringify(data).slice(0, 150)}`)
-  }
 
   const result: FetchResult = { windows, status: "ok", note: "Command Code 订阅" }
 
-  // 月度 credits 池（剩余余额，可滚存/购买，无固定 cap → 以 Balance 展示）
+  // 月度 credits 池（剩余余额，可滚存/购买，无固定 cap → 以 Balance 展示；
+  // 接口返回 0 属正常（免费/新账号），同样显示 $0.00（UI 对低余额自动标红））
   const creditsObj = (data.credits ?? {}) as Record<string, unknown>
   const monthlyCredits =
-    typeof creditsObj.monthlyCredits === "number" && creditsObj.monthlyCredits > 0
+    typeof creditsObj.monthlyCredits === "number" && Number.isFinite(creditsObj.monthlyCredits)
       ? creditsObj.monthlyCredits
       : undefined
   if (monthlyCredits !== undefined) {
     result.balance = { amount: monthlyCredits, currency: "USD" }
+  }
+
+  // 仅当窗口与余额都拿不到时才视为响应异常
+  if (!windows.length && !result.balance) {
+    throw new Error(`计费接口响应缺少可用数据：${JSON.stringify(data).slice(0, 150)}`)
   }
 
   const strField = (key: string): string | undefined => {
