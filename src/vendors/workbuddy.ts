@@ -489,17 +489,20 @@ function resourcesToWindows(resources: QuotaResource[]): QuotaWindow[] {
   const activity = aggregateGroup(resources.filter(isActivity))
   const others = resources.filter((r) => !isBase(r) && !isExtra(r) && !isActivity(r))
 
-  const mkWindow = (r: QuotaResource, id: string, label: string): QuotaWindow => ({
+  const mkWindow = (r: QuotaResource, id: string, label: string, showTotal = true): QuotaWindow => ({
     id,
     label,
     usedPercent: Math.round(r.usedPercent),
     resetIn: formatResetIn(r.cycleEndAt),
-    detail: `${Math.round(r.remain)}/${Math.round(r.total)}`,
+    // 活动赠送包只看剩余余额，不展示总量（showTotal=false）
+    detail: showTotal
+      ? `${Math.round(r.remain)}/${Math.round(r.total)}`
+      : `${Math.round(r.remain)}`,
   })
 
   const windows: QuotaWindow[] = []
   if (base) windows.push(mkWindow(base, "base", resolvePackageName(base.packageCode, base.packageName)))
-  if (activity) windows.push(mkWindow(activity, "activity", resolvePackageName(activity.packageCode, activity.packageName)))
+  if (activity) windows.push(mkWindow(activity, "activity", resolvePackageName(activity.packageCode, activity.packageName), false))
   if (extra) windows.push(mkWindow(extra, "extra", resolvePackageName(extra.packageCode, extra.packageName)))
   // 其他包各自一个窗口
   others.forEach((r, i) =>
