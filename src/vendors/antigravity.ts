@@ -12,7 +12,7 @@ import type { QuotaWindow, VendorDef } from "@/lib/types"
  *   POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist（拿套餐 / 项目 ID）→
  *   POST v1internal:retrieveUserQuotaSummary（分组配额摘要，**唯一暴露每周限额的公开接口**，
  *     响应 groups[].buckets[].window ∈ {5h, weekly} + remainingFraction/resetTime）
- * 展示（与官方 /usage 一致）：仅统计 Gemini 组，「5 小时限额」与「每周限额」均为真实数据；
+ * 展示（与 Codex 布局一致，两行竖排）：仅取 Gemini 组的「5 小时限额」与「每周限额」（真实数据）；
  *   retrieveUserQuotaSummary 不可用时回退 fetchAvailableModels（5h 真实 + 每周占位）。
  * Antigravity 配额为按模型计（fraction 0.0-1.0，1.0 = 全部剩余），5 小时 / 每周窗口。
  */
@@ -44,7 +44,11 @@ export const antigravity: VendorDef = {
   kind: "subscription",
   authType: "json",
   defaultPlan: "Pro",
-  // 分组配额窗口由 retrieveUserQuotaSummary 返回（每组 5h + weekly），无固定模板
+  // 与 Codex 一致的两行：5 小时限额 + 每周限额（仅 Gemini 组）
+  windowTemplates: [
+    { id: "antigravity-5h", label: "5 小时限额" },
+    { id: "antigravity-weekly", label: "每周限额" },
+  ],
   fields: [
     {
       key: "content",
@@ -306,50 +310,39 @@ function pickBucket(group: QuotaGroup | undefined, windows: string[]): QuotaBuck
   return buckets.find((b) => windows.some((w) => norm(b.window) === w))
 }
 
-/** 官方分组名 → 卡片组标题（行首显示） */
-function normalizeGroupLabel(displayName: string | undefined): string {
-  const name = (displayName ?? "").trim()
-  if (/^gemini/i.test(name)) return "Gemini"
-  if (/^claude/i.test(name) && /gpt/i.test(name)) return "Claude & GPT"
-  return name || "Quota"
-}
-
-/** 从分组摘要组装：每个分组一行（5h + 每周两个窗口，带 group 由 UI 同行渲染） */
+/** 仅取 Gemini 组的 5h + 每周两个窗口（与 Codex 布局一致，两行竖排） */
 function buildSummaryWindows(
   groups: QuotaGroup[]
 ): { windows: QuotaWindow[]; note: string } | null {
+  const geminiGroup = groups.find((g) => /gemini/i.test(g.displayName ?? ""))
+  const group = geminiGroup ?? groups[0]
   const windows: QuotaWindow[] = []
   const frac = (b: QuotaBucket | undefined) =>
     typeof b?.remainingFraction === "number" && Number.isFinite(b.remainingFraction)
       ? b.remainingFraction
       : null
-  for (const g of groups) {
-    const groupLabel = normalizeGroupLabel(g.displayName)
-    const b5 = pickBucket(g, ["5h", "five-hour", "five_hour"])
-    const bWeek = pickBucket(g, ["weekly", "week"])
-    const f5 = frac(b5)
-    const fw = frac(bWeek)
-    if (f5 !== null) {
-      windows.push({
-        id: `antigravity-${groupLabel}-5h`,
-        label: "5 小时限额",
-        usedPercent: Math.min(100, Math.max(0, Math.round((1 - f5) * 100))),
-        resetIn: formatResetIn(b5?.resetTime),
-        group: groupLabel,
-      })
-    }
-    if (fw !== null) {
-      windows.push({
-        id: `antigravity-${groupLabel}-weekly`,
-        label: "每周限额",
-        usedPercent: Math.min(100, Math.max(0, Math.round((1 - fw) * 100))),
-        resetIn: formatResetIn(bWeek?.resetTime),
-        group: groupLabel,
-      })
-    }
+  const b5 = pickBucket(group, ["5h", "five-hour", "five_hour"])
+  const bWeek = pickBucket(group, ["weekly", "week"])
+  const f5 = frac(b5)
+  const fw = frac(bWeek)
+  if (f5 !== null) {
+    windows.push({
+      id: "antigravity-5h",
+      label: "5 小时限额",
+      usedPercent: Math.min(100, Math.max(0, Math.round((1 - f5) * 100))),
+      resetIn: formatResetIn(b5?.resetTime),
+    })
+  }
+  if (fw !== null) {
+    windows.push({
+      id: "antigravity-weekly",
+      label: "每周限额",
+      usedPercent: Math.min(100, Math.max(0, Math.round((1 - fw) * 100))),
+      resetIn: formatResetIn(bWeek?.resetTime),
+    })
   }
   if (!windows.length) return null
-  return { windows, note: `共 ${groups.length} 个分组` }
+  return { windows, note: geminiGroup ? "Gemini 组配额" : "未发现 Gemini 组，显示首个分组" }
 }
 
 export const adapter: Adapter = async (config) => {
