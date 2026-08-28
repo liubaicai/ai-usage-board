@@ -61,6 +61,8 @@ export interface QuotaWindow {
   usedPercent: number
   resetIn?: string
   detail?: string
+  /** 主数字文本：存在时替代百分比显示（如 WorkBuddy 活动赠送包的剩余余额），进度条仍用 usedPercent */
+  value?: string
   /** 分组名（如 Antigravity 的 Gemini / Claude & GPT）：存在时卡片按组同行渲染 5h+周限 */
   group?: string
 }

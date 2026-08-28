@@ -66,8 +66,12 @@ function QuotaBar({
             danger && "text-accent"
           )}
         >
-          {w.usedPercent}
-          <span className="text-sm font-medium sm:text-base">%</span>
+          {w.value ?? (
+            <>
+              {w.usedPercent}
+              <span className="text-sm font-medium sm:text-base">%</span>
+            </>
+          )}
         </span>
         {w.detail && (
           <span className="truncate text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
@@ -142,7 +146,7 @@ function CompactQuotaBar({
             danger && "text-accent"
           )}
         >
-          {w.usedPercent}%
+          {w.value ?? `${w.usedPercent}%`}
         </span>
         <div className="h-[3px] flex-1 bg-foreground/10">
           <div

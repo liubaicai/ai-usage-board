@@ -489,20 +489,19 @@ function resourcesToWindows(resources: QuotaResource[]): QuotaWindow[] {
   const activity = aggregateGroup(resources.filter(isActivity))
   const others = resources.filter((r) => !isBase(r) && !isExtra(r) && !isActivity(r))
 
-  const mkWindow = (r: QuotaResource, id: string, label: string, showTotal = true): QuotaWindow => ({
+  // 活动赠送包：主数字直接显示剩余余额（不显示百分比与总量），进度条仍按已用比例
+  const mkWindow = (r: QuotaResource, id: string, label: string, valueOnly = false): QuotaWindow => ({
     id,
     label,
     usedPercent: Math.round(r.usedPercent),
     resetIn: formatResetIn(r.cycleEndAt),
-    // 活动赠送包只看剩余余额，不展示总量（showTotal=false）
-    detail: showTotal
-      ? `${Math.round(r.remain)}/${Math.round(r.total)}`
-      : `${Math.round(r.remain)}`,
+    detail: valueOnly ? undefined : `${Math.round(r.remain)}/${Math.round(r.total)}`,
+    value: valueOnly ? `${Math.round(r.remain)}` : undefined,
   })
 
   const windows: QuotaWindow[] = []
   if (base) windows.push(mkWindow(base, "base", resolvePackageName(base.packageCode, base.packageName)))
-  if (activity) windows.push(mkWindow(activity, "activity", resolvePackageName(activity.packageCode, activity.packageName), false))
+  if (activity) windows.push(mkWindow(activity, "activity", resolvePackageName(activity.packageCode, activity.packageName), true))
   if (extra) windows.push(mkWindow(extra, "extra", resolvePackageName(extra.packageCode, extra.packageName)))
   // 其他包各自一个窗口
   others.forEach((r, i) =>
