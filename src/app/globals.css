@@ -370,3 +370,28 @@ html[data-has-bg="true"] body::before {
     currentColor 3px
   );
 }
+
+/*
+ * 滚动条：细窄、低对比，颜色跟随主题前景色（亮色深灰 / 暗色米白灰），
+ * 零圆角，hover 加深一档；Firefox 走 scrollbar-color。
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

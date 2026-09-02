@@ -348,7 +348,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
                 </span>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-px border border-border bg-border sm:grid-cols-4">
                 {VENDORS.map((v) => (
                   <button
                     key={v.id}
@@ -357,16 +357,16 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
                       setConfig(vendorDefaults(v))
                     }}
                     className={cn(
-                      "flex flex-col items-start gap-0.5 px-3 py-2.5 text-left transition-colors",
+                      "flex flex-col items-start gap-0 px-2.5 py-1.5 text-left transition-colors",
                       v.id === vendorId
                         ? "bg-foreground text-background"
                         : "bg-background hover:bg-secondary"
                     )}
                   >
-                    <span className="text-xs font-bold leading-tight">{v.name}</span>
+                    <span className="truncate text-[11px] font-bold leading-tight">{v.name}</span>
                     <span
                       className={cn(
-                        "text-[9px] uppercase tracking-[0.12em]",
+                        "text-[9px] uppercase tracking-[0.1em]",
                         v.id === vendorId ? "text-background/70" : "text-muted-foreground"
                       )}
                     >
