@@ -12,6 +12,7 @@ import { adapter as geminiAdapter, gemini } from "./gemini"
 import { adapter as kiloAdapter, kilo } from "./kilo"
 import { adapter as minimaxAdapter, minimax } from "./minimax"
 import { adapter as moonshotAdapter, moonshot } from "./moonshot"
+import { adapter as ollamaCloudAdapter, ollamaCloud } from "./ollama-cloud"
 import { adapter as opencodeAdapter, opencode } from "./opencode"
 import { adapter as openrouterAdapter, openrouter } from "./openrouter"
 import { adapter as relayAdapter, relay } from "./relay"
@@ -43,6 +44,7 @@ export const VENDORS: VendorDef[] = [
   deepseek,
   siliconflow,
   moonshot,
+  ollamaCloud,
   openrouter,
   zhipuCoding,
   relay,
@@ -69,6 +71,7 @@ export const ADAPTERS: Record<string, Adapter> = {
   [deepseek.id]: deepseekAdapter,
   [siliconflow.id]: siliconflowAdapter,
   [moonshot.id]: moonshotAdapter,
+  [ollamaCloud.id]: ollamaCloudAdapter,
   [openrouter.id]: openrouterAdapter,
   [relay.id]: relayAdapter,
   [zhipuCoding.id]: zhipuCodingAdapter,

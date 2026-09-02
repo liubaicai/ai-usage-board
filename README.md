@@ -48,7 +48,7 @@
 - **亮暗双主题**：跟随系统偏好，支持手动切换，本地记忆不闪烁
 - **全栈后端**：厂商接口请求、卡片列表/顺序、账号配置与 API Key 全部存放在后端，单一 JSON 文件存储
 
-> 💡 接入进度：**Codex（5 种授权）、Claude Code、GitHub Copilot（设备授权/PAT）、Gemini CLI、Antigravity（agy CLI，分组 5h/每周配额）、Command Code（commandcode.ai，Cookie 计费 5h/每周）、MiniMax（Coding Plan）、Cursor、Windsurf（Devin）、Kilo（Kilo Pass）、OpenCode、WorkBuddy（腾讯云 CodeBuddy）、DeepSeek、SiliconFlow、Moonshot (Kimi)、OpenRouter、GLM Coding Plan、中转站（OpenAI 兼容计费）** 均已接通真实查询（服务端直连厂商 API）。其中 Moonshot / 智谱 Coding Plan 区分国内/国际站（智谱另支持国内团队版）；**中转站**支持 new-api / one-api / uni-api / sub2api 三类计费接口，自动检测或手动指定格式。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：在 `src/vendors/` 新建文件（导出 `VendorDef` + `Adapter`），再到 `index.ts` 注册即可。
+> 💡 接入进度：**Codex（5 种授权）、Claude Code、GitHub Copilot（设备授权/PAT）、Gemini CLI、Antigravity（agy CLI，分组 5h/每周配额）、Command Code（commandcode.ai，Cookie 计费 5h/每周）、Ollama Cloud（API Key，5h/每周额度）、MiniMax（Coding Plan）、Cursor、Windsurf（Devin）、Kilo（Kilo Pass）、OpenCode、WorkBuddy（腾讯云 CodeBuddy）、DeepSeek、SiliconFlow、Moonshot (Kimi)、OpenRouter、GLM Coding Plan、中转站（OpenAI 兼容计费）** 均已接通真实查询（服务端直连厂商 API）。其中 Moonshot / 智谱 Coding Plan 区分国内/国际站（智谱另支持国内团队版）；**中转站**支持 new-api / one-api / uni-api / sub2api 三类计费接口，自动检测或手动指定格式。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：在 `src/vendors/` 新建文件（导出 `VendorDef` + `Adapter`），再到 `index.ts` 注册即可。
 >
 > ⚠️ 已知限制：① **智谱按量计费**账户无任何公开余额/配额 API（余额只能看控制台）；② **Codex Cookie 方式与 OAuth 设备授权**需要能直连 OpenAI 的网络（ChatGPT/Cloudflare 会拦截数据中心 IP），优先使用 auth.json / sub2api / cliproxy 三种 JSON 授权。每个接入可在配置中**指定独立 HTTP/SOCKS 代理**，规避网络拦截。
 
@@ -195,6 +195,7 @@ ai-usage-board/
     │   ├── index.ts          # 聚合 VENDORS / VENDOR_MAP / ADAPTERS
     │   ├── antigravity.ts    # Google Antigravity (agy CLI) · 订阅制，分组 5h/每周配额（fraction）
     │   ├── commandcode.ts    # Command Code (commandcode.ai) · 订阅制，Cookie 计费 5h/每周（USD）
+    │   ├── ollama-cloud.ts  # Ollama Cloud · 订阅制，5h/每周额度（fraction，API Key）
     │   ├── codex-common.ts   # Codex 共用：授权解析 + wham/usage 查询 + token 主动/被动刷新 + 账号信息（名称/订阅到期）
     │   ├── codex.ts          # Codex · 下拉选择授权方式（auth.json / Cookie / sub2api / cliproxy / OAuth）
     │   ├── deepseek.ts       # DeepSeek · 按量计费
