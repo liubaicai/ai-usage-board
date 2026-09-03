@@ -172,6 +172,7 @@ ai-usage-board/
 ├── tsconfig.json
 ├── LICENSE
 ├── docs/                    # 文档与界面截图
+├── tui/                     # Go + Bubble Tea 跨平台终端客户端（单文件发布）
 ├── data/                    # 运行期生成：store.json（含密钥，已 gitignore）
 └── src/
     ├── app/
@@ -227,6 +228,25 @@ ai-usage-board/
 | GET / PUT | `/api/settings` | 读取 / 更新全局刷新间隔 |
 | GET | `/api/usage/:id?refresh=1` | 刷新单个账号用量 |
 | POST | `/api/usage/refresh-all` | 刷新全部账号 |
+| GET | `/api/v1/usage` | 面向 TUI/第三方集成的稳定只读快照（不含任何账号配置或密钥） |
+| POST | `/api/v1/usage/refresh` | 服务端刷新全部厂商后返回稳定只读快照 |
+
+### TUI 与公共 API
+
+`tui/` 中提供 Go + Bubble Tea 编写的跨平台终端客户端，支持 Windows、Linux、macOS，编译后是无需 Node.js 或其他运行时的单文件程序：
+
+```bash
+cd tui
+go run ./cmd/ai-usage-tui --server http://localhost:5173
+```
+
+生产环境建议设置 `AI_USAGE_BOARD_API_TOKEN` 保护 `/api/v1/*`：
+
+```bash
+AI_USAGE_BOARD_API_TOKEN=your-secret npm start
+```
+
+TUI 通过 `AI_USAGE_BOARD_TOKEN=your-secret` 传入同一 Token。API 同时接受 `Authorization: Bearer <token>` 与 `X-API-Key: <token>`；服务端未设置 Token 时保持免鉴权，适合仅监听本机的场景。完整构建、按键和多平台发布说明见 [`tui/README.md`](tui/README.md)。
 
 ## 🤝 贡献指南
 

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+tui/dist/
 release/
 dist-electron/
 src-tauri/target/
@@ -31,4 +32,3 @@ data/store.json
 .tmp_*
 .next_old_*/
 public/screenshots/
-

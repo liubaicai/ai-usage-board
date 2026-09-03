@@ -12,6 +12,8 @@ services:
       - ./data:/app/data
     environment:
       - NODE_ENV=production
+      # 可选：为 /api/v1/* 公共查询接口启用鉴权（TUI 使用）
+      - AI_USAGE_BOARD_API_TOKEN=${AI_USAGE_BOARD_API_TOKEN:-}
       # Antigravity OAuth client secret（Google 账号接入用，从宿主环境读取）
       # 部署前先 export ANTIGRAVITY_CLIENT_SECRET=<值>，再 docker compose up -d
       - ANTIGRAVITY_CLIENT_SECRET=${ANTIGRAVITY_CLIENT_SECRET:-}
