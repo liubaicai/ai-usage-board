@@ -219,8 +219,6 @@ func (m Model) renderSummary(width int) string {
 	return truncateWidth(text, width)
 }
 
-const cardContentHeight = 13
-
 func (m Model) renderGrid(width int) string {
 	const columnGap = 2
 	const rowGap = 1
@@ -229,19 +227,15 @@ func (m Model) renderGrid(width int) string {
 	cardWidth := (width - columnGap*(columns-1)) / columns
 	totalRows := (len(m.data.Accounts) + columns - 1) / columns
 	selectedRow := m.cursor / columns
-	cardOuterHeight := cardContentHeight + 2
 	reservedHeight := 6
 	if m.err != nil {
 		reservedHeight += 2
 	}
-	availableHeight := max(cardOuterHeight, m.height-reservedHeight)
-	visibleRows := max(1, (availableHeight+rowGap)/(cardOuterHeight+rowGap))
-	startRow := max(0, selectedRow-visibleRows+1)
-	startRow = min(startRow, max(0, totalRows-visibleRows))
-	endRow := min(totalRows, startRow+visibleRows)
+	availableHeight := max(1, m.height-reservedHeight)
 
-	rows := make([]string, 0, endRow-startRow)
-	for row := startRow; row < endRow; row++ {
+	rows := make([]string, 0, totalRows)
+	rowHeights := make([]int, 0, totalRows)
+	for row := 0; row < totalRows; row++ {
 		cards := make([]string, 0, columns)
 		for column := 0; column < columns; column++ {
 			index := row*columns + column
@@ -250,9 +244,12 @@ func (m Model) renderGrid(width int) string {
 			}
 			cards = append(cards, m.renderCard(m.data.Accounts[index], cardWidth, index == m.cursor))
 		}
-		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, intersperse(cards, strings.Repeat(" ", columnGap))...))
+		renderedRow := lipgloss.JoinHorizontal(lipgloss.Top, intersperse(cards, strings.Repeat(" ", columnGap))...)
+		rows = append(rows, renderedRow)
+		rowHeights = append(rowHeights, lipgloss.Height(renderedRow))
 	}
-	return strings.Join(rows, strings.Repeat("\n", rowGap+1))
+	startRow, endRow := visibleRowRange(rowHeights, selectedRow, availableHeight, rowGap)
+	return strings.Join(rows[startRow:endRow], strings.Repeat("\n", rowGap+1))
 }
 
 func (m Model) renderCard(account api.Account, width int, selected bool) string {
@@ -288,13 +285,8 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 			lines = append(lines, mutedStyle.Render(truncateWidth(strings.Join(details, " · "), innerWidth)))
 		}
 	} else {
-		windows := account.Windows
-		visibleWindows := min(4, len(windows))
-		if len(windows) > 4 {
-			visibleWindows = 3
-		}
-		for index := 0; index < visibleWindows; index++ {
-			window := windows[index]
+		windows := displayWindows(account)
+		for _, window := range windows {
 			label := window.Label
 			if window.Group != "" {
 				label = window.Group + " · " + label
@@ -306,6 +298,10 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 			label = truncateWidth(label, max(8, innerWidth/2))
 			reset = truncateWidth(reset, max(0, innerWidth-lipgloss.Width(label)-1))
 			lines = append(lines, alignLine(label, mutedStyle.Render(reset), innerWidth))
+			if !windowAvailable(window) {
+				lines = append(lines, mutedStyle.Render("—")+" "+progressBar(0, max(6, innerWidth-3)))
+				continue
+			}
 			value := fmt.Sprintf("%.0f%%", window.UsedPercent)
 			if window.Value != "" {
 				value = window.Value
@@ -313,13 +309,14 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 			barWidth := max(6, innerWidth-lipgloss.Width(value)-2)
 			lines = append(lines, statusStyle(statusForPercent(window.UsedPercent)).Render(truncateWidth(value, max(5, innerWidth/3)))+" "+progressBar(window.UsedPercent, barWidth))
 		}
-		if len(windows) > visibleWindows {
-			lines = append(lines, mutedStyle.Render(fmt.Sprintf("另有 %d 个配额窗口", len(windows)-visibleWindows)))
-		}
 	}
 
-	if account.Note != "" {
-		lines = append(lines, statusStyle(account.Status).Render(truncateWidth(account.Note, innerWidth)))
+	note := ""
+	if account.Status != "ok" {
+		note = strings.TrimSpace(account.Note)
+	}
+	if note != "" {
+		lines = append(lines, statusStyle(account.Status).Render(truncateWidth(note, innerWidth)))
 	}
 	updated := "尚未刷新"
 	if account.LastFetched > 0 {
@@ -342,7 +339,6 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 		Background(colorSurface).
 		Padding(0, 1).
 		Width(max(20, width-2)).
-		Height(cardContentHeight).
 		Render(strings.Join(lines, "\n"))
 }
 
@@ -393,6 +389,78 @@ func gridColumns(width int) int {
 	default:
 		return 1
 	}
+}
+
+func visibleRowRange(heights []int, selected, availableHeight, gap int) (int, int) {
+	if len(heights) == 0 {
+		return 0, 0
+	}
+	selected = max(0, min(selected, len(heights)-1))
+	start := selected
+	used := heights[selected]
+	for start > 0 {
+		candidate := heights[start-1] + gap + used
+		if candidate > availableHeight {
+			break
+		}
+		start--
+		used = candidate
+	}
+
+	end := start
+	used = 0
+	for end < len(heights) {
+		next := heights[end]
+		if end > start {
+			next += gap
+		}
+		if end > start && used+next > availableHeight {
+			break
+		}
+		used += next
+		end++
+	}
+	return start, end
+}
+
+func windowAvailable(window api.QuotaWindow) bool {
+	return window.Available == nil || *window.Available
+}
+
+func displayWindows(account api.Account) []api.QuotaWindow {
+	if account.VendorID != "codex" {
+		return account.Windows
+	}
+
+	templates := []api.QuotaWindow{
+		{ID: "codex-5h", Label: "5 小时限额"},
+		{ID: "codex-weekly", Label: "每周限额"},
+	}
+	matched := make([]bool, len(account.Windows))
+	result := make([]api.QuotaWindow, 0, len(account.Windows)+len(templates))
+	for _, template := range templates {
+		found := -1
+		for index, window := range account.Windows {
+			if window.ID == template.ID || window.Label == template.Label {
+				found = index
+				break
+			}
+		}
+		if found >= 0 {
+			matched[found] = true
+			result = append(result, account.Windows[found])
+			continue
+		}
+		available := false
+		template.Available = &available
+		result = append(result, template)
+	}
+	for index, window := range account.Windows {
+		if !matched[index] {
+			result = append(result, window)
+		}
+	}
+	return result
 }
 
 func statusForPercent(percent float64) string {

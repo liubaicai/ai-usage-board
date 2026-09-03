@@ -33,6 +33,21 @@ func TestParseFlags(t *testing.T) {
 	}
 }
 
+func TestParseUsesFiveMinuteDefaultInterval(t *testing.T) {
+	t.Setenv("AI_USAGE_BOARD_URL", "")
+	t.Setenv("AI_USAGE_BOARD_TOKEN", "")
+	t.Setenv("AI_USAGE_BOARD_INTERVAL", "")
+	t.Setenv("AI_USAGE_BOARD_TIMEOUT", "")
+
+	cfg, _, err := Parse(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RefreshInterval != 5*time.Minute {
+		t.Fatalf("default refresh interval = %s, want 5m", cfg.RefreshInterval)
+	}
+}
+
 func TestParseHelp(t *testing.T) {
 	_, _, err := Parse([]string{"--help"})
 	if !errors.Is(err, flag.ErrHelp) {

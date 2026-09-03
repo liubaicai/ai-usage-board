@@ -27,7 +27,7 @@ func Parse(args []string) (Config, bool, error) {
 
 	serverDefault := firstNonEmpty(os.Getenv("AI_USAGE_BOARD_URL"), defaultServerURL)
 	tokenDefault := os.Getenv("AI_USAGE_BOARD_TOKEN")
-	intervalDefault, err := durationEnv("AI_USAGE_BOARD_INTERVAL", 30*time.Second)
+	intervalDefault, err := durationEnv("AI_USAGE_BOARD_INTERVAL", 5*time.Minute)
 	if err != nil {
 		return Config{}, false, err
 	}
@@ -91,7 +91,7 @@ func Usage() string {
 选项:
   --server URL       服务地址（默认 http://localhost:5173）
   --token TOKEN      公共 API Token，推荐改用环境变量传入
-  --interval 30s     自动刷新间隔，0 表示关闭
+  --interval 5m      自动刷新间隔，0 表示关闭
   --timeout 30s      HTTP 请求超时
   --version          显示版本
 

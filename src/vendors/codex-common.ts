@@ -510,7 +510,7 @@ function parseUsage(data: Record<string, unknown>): FetchResult {
     plan,
     balance,
     status: "ok",
-    note: credits?.has_credits === false ? "免费档（无付费积分）" : "Codex 实时用量",
+    note: credits?.has_credits === false ? undefined : "Codex 实时用量",
   }
 }
 

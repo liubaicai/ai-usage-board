@@ -5,6 +5,8 @@ export interface PublicUsageWindow {
   id: string
   label: string
   usedPercent: number
+  /** false 表示厂商定义了该窗口，但当前账号未返回对应配额数据 */
+  available: boolean
   resetIn?: string
   detail?: string
   value?: string
@@ -60,6 +62,28 @@ export function buildPublicUsageResponse(
 ): PublicUsageResponse {
   const publicAccounts = accounts.map<PublicUsageAccount>((account) => {
     const vendor = VENDOR_MAP[account.vendorId]
+    const actualWindows = account.windows ?? []
+    const matchedWindowIds = new Set<string>()
+    const windows: PublicUsageWindow[] = (vendor?.windowTemplates ?? []).map((template) => {
+      const actual = actualWindows.find(
+        (window) => window.id === template.id || window.label === template.label
+      )
+      if (actual) {
+        matchedWindowIds.add(actual.id)
+        return { ...actual, available: true }
+      }
+      return {
+        id: template.id,
+        label: template.label,
+        usedPercent: 0,
+        available: false,
+      }
+    })
+    windows.push(
+      ...actualWindows
+        .filter((window) => !matchedWindowIds.has(window.id))
+        .map((window) => ({ ...window, available: true }))
+    )
     return {
       id: account.id,
       vendorId: account.vendorId,
@@ -71,7 +95,7 @@ export function buildPublicUsageResponse(
       plan: account.plan,
       subscriptionExpiresAt: account.subscriptionExpiresAt,
       status: account.status,
-      windows: account.windows ?? [],
+      windows,
       balance: account.balance,
       note: account.note,
       refreshSec: account.refreshSec,

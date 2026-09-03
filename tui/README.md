@@ -15,7 +15,7 @@ go run ./cmd/ai-usage-tui
 ```text
 --server URL       服务地址
 --token TOKEN      公共 API Token（推荐使用环境变量）
---interval 30s     自动刷新间隔，0 表示关闭
+--interval 5m      自动刷新间隔，0 表示关闭
 --timeout 30s      HTTP 请求超时
 --version          显示版本
 ```
@@ -25,7 +25,7 @@ go run ./cmd/ai-usage-tui
 ```bash
 export AI_USAGE_BOARD_URL=https://usage.example.com
 export AI_USAGE_BOARD_TOKEN=your-secret-token
-export AI_USAGE_BOARD_INTERVAL=30s
+export AI_USAGE_BOARD_INTERVAL=5m
 ./ai-usage-tui
 ```
 
@@ -43,7 +43,9 @@ TUI 使用与 Web 面板一致的卡片式信息结构：
 
 - 每个账号是一张独立卡片，直接显示厂商、套餐、账号名称、余额或配额窗口、状态和刷新时间
 - 终端宽度变化时，卡片网格自动在一至四列之间调整
-- 所有卡片采用统一高度；配额过多时在卡片内提示剩余窗口数量
+- 卡片高度随余额、配额窗口等实际内容自动调整，不再保留多余空白
+- 厂商定义但账号未返回的配额窗口会显示为空进度条占位
+- 正常状态下隐藏厂商的说明性备注，仅在警告或错误时显示原因
 - 卡片超出当前屏幕时，选中项会随键盘操作自动滚动到可视区域
 
 | 按键 | 操作 |

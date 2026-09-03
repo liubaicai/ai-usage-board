@@ -43,6 +43,7 @@ type QuotaWindow struct {
 	ID          string  `json:"id"`
 	Label       string  `json:"label"`
 	UsedPercent float64 `json:"usedPercent"`
+	Available   *bool   `json:"available"`
 	ResetIn     string  `json:"resetIn"`
 	Detail      string  `json:"detail"`
 	Value       string  `json:"value"`
