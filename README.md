@@ -240,6 +240,8 @@ cd tui
 go run ./cmd/ai-usage-tui --server http://localhost:5173
 ```
 
+TUI 延续 Web 面板的卡片式布局：每个账号独立显示为一张方形卡片，卡内直接展示厂商、套餐、当前余额或各配额窗口、告警状态和最近刷新时间，不再拆分列表与详情面板。布局会根据终端宽度自动在一至四列之间切换；卡片超出当前屏幕时，可用方向键或 `h/j/k/l` 按网格浏览。
+
 生产环境建议设置 `AI_USAGE_BOARD_API_TOKEN` 保护 `/api/v1/*`：
 
 ```bash

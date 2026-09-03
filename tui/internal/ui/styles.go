@@ -17,9 +17,8 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorBorder).
 			Padding(0, 1)
-	selectedStyle = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
-	errorStyle    = lipgloss.NewStyle().Foreground(colorError)
-	helpKeyStyle  = lipgloss.NewStyle().Bold(true).Foreground(colorMuted)
+	errorStyle   = lipgloss.NewStyle().Foreground(colorError)
+	helpKeyStyle = lipgloss.NewStyle().Bold(true).Foreground(colorMuted)
 )
 
 func statusStyle(status string) lipgloss.Style {

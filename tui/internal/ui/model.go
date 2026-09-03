@@ -65,6 +65,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		columns := gridColumns(max(30, m.width-2))
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -72,14 +73,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.loading {
 				return m.startFetch(true)
 			}
+		case "left", "h":
+			m.cursor = max(0, m.cursor-1)
+		case "right", "l":
+			m.cursor = min(max(0, len(m.data.Accounts)-1), m.cursor+1)
 		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-			}
+			m.cursor = max(0, m.cursor-columns)
 		case "down", "j":
-			if m.cursor < len(m.data.Accounts)-1 {
-				m.cursor++
-			}
+			m.cursor = min(max(0, len(m.data.Accounts)-1), m.cursor+columns)
 		case "home", "g":
 			m.cursor = 0
 		case "end", "G":
@@ -133,21 +134,8 @@ func (m Model) View() string {
 		body = panelStyle.Width(max(20, contentWidth-4)).Render(m.spinner.View() + " 正在连接服务并读取用量…")
 	} else if len(m.data.Accounts) == 0 {
 		body = panelStyle.Width(max(20, contentWidth-4)).Render("尚未配置账号，请先在 Web 面板中添加账号。")
-	} else if contentWidth >= 92 {
-		listWidth := max(34, contentWidth*2/5)
-		detailWidth := max(42, contentWidth-listWidth-2)
-		body = lipgloss.JoinHorizontal(
-			lipgloss.Top,
-			m.renderList(listWidth),
-			"  ",
-			m.renderDetail(detailWidth),
-		)
 	} else {
-		body = lipgloss.JoinVertical(
-			lipgloss.Left,
-			m.renderList(contentWidth),
-			m.renderDetail(contentWidth),
-		)
+		body = m.renderGrid(contentWidth)
 	}
 
 	parts := []string{header, summary}
@@ -231,80 +219,131 @@ func (m Model) renderSummary(width int) string {
 	return truncateWidth(text, width)
 }
 
-func (m Model) renderList(width int) string {
-	// Keep two spare columns because some Windows terminals render the status
-	// bullet wider than its wcwidth value.
-	innerWidth := max(18, width-6)
-	rows := []string{titleStyle.Render("账号")}
-	for index, account := range m.data.Accounts {
-		marker := "  "
-		style := lipgloss.NewStyle()
-		if index == m.cursor {
-			marker = "› "
-			style = selectedStyle
-		}
-		status := statusStyle(account.Status).Render("●")
-		nameWidth := max(8, innerWidth-16)
-		name := truncateWidth(account.Label, nameWidth)
-		value := accountPrimaryValue(account)
-		line := fmt.Sprintf("%s%s %s", marker, status, name)
-		gap := strings.Repeat(" ", max(1, innerWidth-lipgloss.Width(line)-lipgloss.Width(value)))
-		rows = append(rows, style.Render(line+gap+value))
-		vendor := mutedStyle.Render("    " + truncateWidth(account.VendorName, max(8, innerWidth-4)))
-		rows = append(rows, vendor)
+const cardContentHeight = 13
+
+func (m Model) renderGrid(width int) string {
+	const columnGap = 2
+	const rowGap = 1
+
+	columns := gridColumns(width)
+	cardWidth := (width - columnGap*(columns-1)) / columns
+	totalRows := (len(m.data.Accounts) + columns - 1) / columns
+	selectedRow := m.cursor / columns
+	cardOuterHeight := cardContentHeight + 2
+	reservedHeight := 6
+	if m.err != nil {
+		reservedHeight += 2
 	}
-	return panelStyle.Width(max(20, width-4)).Render(strings.Join(rows, "\n"))
+	availableHeight := max(cardOuterHeight, m.height-reservedHeight)
+	visibleRows := max(1, (availableHeight+rowGap)/(cardOuterHeight+rowGap))
+	startRow := max(0, selectedRow-visibleRows+1)
+	startRow = min(startRow, max(0, totalRows-visibleRows))
+	endRow := min(totalRows, startRow+visibleRows)
+
+	rows := make([]string, 0, endRow-startRow)
+	for row := startRow; row < endRow; row++ {
+		cards := make([]string, 0, columns)
+		for column := 0; column < columns; column++ {
+			index := row*columns + column
+			if index >= len(m.data.Accounts) {
+				break
+			}
+			cards = append(cards, m.renderCard(m.data.Accounts[index], cardWidth, index == m.cursor))
+		}
+		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, intersperse(cards, strings.Repeat(" ", columnGap))...))
+	}
+	return strings.Join(rows, strings.Repeat("\n", rowGap+1))
 }
 
-func (m Model) renderDetail(width int) string {
-	if len(m.data.Accounts) == 0 {
-		return ""
+func (m Model) renderCard(account api.Account, width int, selected bool) string {
+	innerWidth := max(18, width-6)
+	nameStyle := lipgloss.NewStyle().Bold(true)
+	if selected {
+		nameStyle = nameStyle.Foreground(colorAccent)
 	}
-	account := m.data.Accounts[m.cursor]
-	innerWidth := max(20, width-4)
-	lines := []string{
-		titleStyle.Render(truncateWidth(account.Label, innerWidth)),
-		mutedStyle.Render(truncateWidth(account.VendorName+optionalSeparator(account.Plan), innerWidth)),
-	}
+	headerRight := truncateWidth(strings.ToUpper(account.Plan), max(0, innerWidth/3))
+	nameWidth := max(5, innerWidth-lipgloss.Width(headerRight)-4)
+	headerLeft := statusStyle(account.Status).Render("■") + " " + nameStyle.Render(truncateWidth(account.Label, nameWidth))
+	lines := []string{alignLine(headerLeft, headerRight, innerWidth)}
+
+	meta := account.VendorName
 	if account.AccountName != "" {
-		lines = append(lines, "账号  "+truncateWidth(account.AccountName, max(8, innerWidth-6)))
+		meta += " · " + account.AccountName
+	} else if account.SubscriptionExpiresAt != "" {
+		meta += " · 到期 " + account.SubscriptionExpiresAt
 	}
-	if account.SubscriptionExpiresAt != "" {
-		lines = append(lines, "到期  "+account.SubscriptionExpiresAt)
-	}
+	lines = append(lines, mutedStyle.Render(truncateWidth(meta, innerWidth)), "")
+
 	if account.Balance != nil {
-		lines = append(lines, "", "余额  "+selectedStyle.Render(formatBalance(*account.Balance)))
+		lines = append(lines, mutedStyle.Render("当前余额"))
+		lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(formatBalance(*account.Balance)))
+		details := make([]string, 0, 2)
 		if account.Balance.Granted != nil {
-			lines = append(lines, mutedStyle.Render(fmt.Sprintf("赠送余额 %.2f", *account.Balance.Granted)))
+			details = append(details, fmt.Sprintf("赠送 %.2f", *account.Balance.Granted))
 		}
-	}
-	if len(account.Windows) > 0 {
-		lines = append(lines, "", "配额窗口")
-		for _, window := range account.Windows {
+		if account.Balance.TotalBalance != nil && math.Abs(*account.Balance.TotalBalance-account.Balance.Amount) > 0.005 {
+			details = append(details, fmt.Sprintf("总额 %.2f", *account.Balance.TotalBalance))
+		}
+		if len(details) > 0 {
+			lines = append(lines, mutedStyle.Render(truncateWidth(strings.Join(details, " · "), innerWidth)))
+		}
+	} else {
+		windows := account.Windows
+		visibleWindows := min(4, len(windows))
+		if len(windows) > 4 {
+			visibleWindows = 3
+		}
+		for index := 0; index < visibleWindows; index++ {
+			window := windows[index]
 			label := window.Label
 			if window.Group != "" {
 				label = window.Group + " · " + label
 			}
+			reset := window.ResetIn
+			if reset != "" {
+				reset = "重置 " + reset
+			}
+			label = truncateWidth(label, max(8, innerWidth/2))
+			reset = truncateWidth(reset, max(0, innerWidth-lipgloss.Width(label)-1))
+			lines = append(lines, alignLine(label, mutedStyle.Render(reset), innerWidth))
 			value := fmt.Sprintf("%.0f%%", window.UsedPercent)
 			if window.Value != "" {
 				value = window.Value
 			}
-			lines = append(lines, truncateWidth(label, innerWidth))
-			barWidth := max(8, min(24, innerWidth-lipgloss.Width(value)-2))
-			lines = append(lines, progressBar(window.UsedPercent, barWidth)+"  "+value)
-			meta := strings.TrimSpace(strings.Join(nonEmpty(window.ResetIn, window.Detail), " · "))
-			if meta != "" {
-				lines = append(lines, mutedStyle.Render(truncateWidth(meta, innerWidth)))
-			}
+			barWidth := max(6, innerWidth-lipgloss.Width(value)-2)
+			lines = append(lines, statusStyle(statusForPercent(window.UsedPercent)).Render(truncateWidth(value, max(5, innerWidth/3)))+" "+progressBar(window.UsedPercent, barWidth))
+		}
+		if len(windows) > visibleWindows {
+			lines = append(lines, mutedStyle.Render(fmt.Sprintf("另有 %d 个配额窗口", len(windows)-visibleWindows)))
 		}
 	}
+
 	if account.Note != "" {
-		lines = append(lines, "", statusStyle(account.Status).Render(truncateWidth(account.Note, innerWidth)))
+		lines = append(lines, statusStyle(account.Status).Render(truncateWidth(account.Note, innerWidth)))
 	}
+	updated := "尚未刷新"
 	if account.LastFetched > 0 {
-		lines = append(lines, "", mutedStyle.Render("服务端刷新 "+time.UnixMilli(account.LastFetched).Format("2006-01-02 15:04:05")))
+		updated = "刷新 " + time.UnixMilli(account.LastFetched).Format("01-02 15:04:05")
 	}
-	return panelStyle.Width(max(20, width-4)).Render(strings.Join(lines, "\n"))
+	lines = append(lines, mutedStyle.Render(updated))
+
+	borderColor := colorBorder
+	if account.Status == "error" {
+		borderColor = colorError
+	} else if account.Status == "warn" {
+		borderColor = colorWarn
+	}
+	if selected {
+		borderColor = colorAccent
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Background(colorSurface).
+		Padding(0, 1).
+		Width(max(20, width-2)).
+		Height(cardContentHeight).
+		Render(strings.Join(lines, "\n"))
 }
 
 func (m Model) renderFooter(width int) string {
@@ -312,23 +351,12 @@ func (m Model) renderFooter(width int) string {
 	if m.refreshInterval > 0 {
 		interval = "每 " + m.refreshInterval.String() + " 自动刷新"
 	}
-	help := helpKeyStyle.Render("↑/↓ j/k") + " 选择  " + helpKeyStyle.Render("r") + " 刷新  " + helpKeyStyle.Render("q") + " 退出"
+	help := helpKeyStyle.Render("方向键/hjkl") + " 浏览卡片  " + helpKeyStyle.Render("r") + " 刷新  " + helpKeyStyle.Render("q") + " 退出"
+	if len(m.data.Accounts) > 0 {
+		help += mutedStyle.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.data.Accounts)))
+	}
 	gap := strings.Repeat(" ", max(1, width-lipgloss.Width(help)-lipgloss.Width(interval)))
 	return mutedStyle.Render(help + gap + interval)
-}
-
-func accountPrimaryValue(account api.Account) string {
-	if account.Balance != nil {
-		return formatBalance(*account.Balance)
-	}
-	if len(account.Windows) > 0 {
-		worst := account.Windows[0].UsedPercent
-		for _, window := range account.Windows[1:] {
-			worst = math.Max(worst, window.UsedPercent)
-		}
-		return fmt.Sprintf("%.0f%%", worst)
-	}
-	return "--"
 }
 
 func formatBalance(balance api.Balance) string {
@@ -354,19 +382,45 @@ func progressBar(percent float64, width int) string {
 		lipgloss.NewStyle().Foreground(colorBorder).Render(strings.Repeat("░", width-filled))
 }
 
-func optionalSeparator(value string) string {
-	if value == "" {
-		return ""
+func gridColumns(width int) int {
+	switch {
+	case width >= 154:
+		return 4
+	case width >= 114:
+		return 3
+	case width >= 76:
+		return 2
+	default:
+		return 1
 	}
-	return " · " + value
 }
 
-func nonEmpty(values ...string) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			result = append(result, strings.TrimSpace(value))
+func statusForPercent(percent float64) string {
+	if percent >= 90 {
+		return "error"
+	}
+	if percent >= 80 {
+		return "warn"
+	}
+	return "ok"
+}
+
+func alignLine(left, right string, width int) string {
+	rightWidth := lipgloss.Width(right)
+	gap := strings.Repeat(" ", max(1, width-lipgloss.Width(left)-rightWidth))
+	return left + gap + right
+}
+
+func intersperse(values []string, separator string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	result := make([]string, 0, len(values)*2-1)
+	for index, value := range values {
+		if index > 0 {
+			result = append(result, separator)
 		}
+		result = append(result, value)
 	}
 	return result
 }
