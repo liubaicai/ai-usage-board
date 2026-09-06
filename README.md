@@ -29,6 +29,10 @@
   <img src="./docs/screenshot.jpg" alt="能量条 Energy Bar 主界面截图" width="100%" />
   <br />
   <sub>主面板：订阅限额、账户余额、刷新倒计时，一屏尽览</sub>
+  <br /><br />
+  <img src="./docs/screenshot-tui.jpg" alt="AI Usage Board TUI 卡片网格截图" width="100%" />
+  <br />
+  <sub>TUI：跨平台终端卡片网格，余额与配额直接可见</sub>
 </div>
 
 ---
@@ -63,6 +67,7 @@
 | 图标 | [lucide-react](https://lucide.dev) |
 | 数据存储 | 单一 JSON 文件 `data/store.json`（服务端读写，含密钥，已 gitignore） |
 | 设计语言 | 瑞士国际主义（黑白灰 + 信号红 `#E30613`、零圆角、细线分隔、tabular-nums） |
+| 终端客户端 | Go 1.24 + [Bubble Tea](https://github.com/charmbracelet/bubbletea) + Lip Gloss（Windows / Linux / macOS 单文件） |
 
 ## 🚀 安装与配置
 

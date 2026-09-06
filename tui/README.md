@@ -2,6 +2,10 @@
 
 用于在 Windows、Linux 和 macOS 终端中查看 AI Usage Board 的账号余额、订阅配额与异常状态。
 
+![AI Usage Board TUI 卡片网格截图](../docs/screenshot-tui.jpg)
+
+上图展示了 TUI 的实际卡片网格：每个账号对应一个方块，余额卡片和配额卡片按内容自适应高度，终端变窄时自动减少列数。
+
 ## 运行
 
 先启动仓库根目录的 Web 服务，再执行：
