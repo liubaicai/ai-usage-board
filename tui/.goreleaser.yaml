@@ -15,6 +15,12 @@ builds:
     goarch:
       - amd64
       - arm64
+    # 只发布 4 个目标：windows x64 / linux x64 / linux arm / mac arm
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: darwin
+        goarch: amd64
     ldflags:
       - -s -w -X main.version={{.Version}}
 
@@ -26,6 +32,8 @@ archives:
       - goos: windows
         formats:
           - zip
+    extra_files:
+      - glob: config.demo.toml
 
 checksum:
   name_template: checksums.txt

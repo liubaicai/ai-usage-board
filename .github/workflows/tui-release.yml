@@ -1,16 +1,86 @@
-name: Release TUI Binaries
+name: TUI Build & Release
 
+# 普通 push 到 master：测试并构建 4 平台 dist，上传为 Actions artifact
+# push v* 标签：测试后由 goreleaser 发布 GitHub Release（归档附带 config.demo.toml）
 on:
   push:
-    tags:
-      - "v*"
-
-permissions:
-  contents: write
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch: # 支持手动触发
 
 jobs:
-  release:
+  test:
+    name: Test
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+
+      - name: Run tests
+        working-directory: tui
+        run: go test ./...
+
+  # 分支 push（含手动触发）时构建 4 平台二进制供下载，不打 Release
+  build-dist:
+    name: Build dist (win-x64 / linux-x64 / linux-arm / mac-arm)
+    needs: test
+    if: startsWith(github.ref, 'refs/heads/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: tui/go.mod
+          cache-dependency-path: tui/go.sum
+
+      - name: Build cross-platform binaries
+        working-directory: tui
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          version="$(git rev-parse --short HEAD)"
+          while read -r os arch ext; do
+            GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build -trimpath \
+              -ldflags="-s -w -X main.version=$version" \
+              -o "dist/ai-usage-tui-$os-$arch$ext" ./cmd/ai-usage-tui
+          done <<'EOF'
+          windows amd64 .exe
+          linux amd64
+          linux arm64
+          darwin arm64
+          EOF
+          cp config.demo.toml dist/config.demo.toml
+          ls -la dist/
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-usage-tui-dist
+          path: |
+            tui/dist/ai-usage-tui-windows-amd64.exe
+            tui/dist/ai-usage-tui-linux-amd64
+            tui/dist/ai-usage-tui-linux-arm64
+            tui/dist/ai-usage-tui-darwin-arm64
+            tui/dist/config.demo.toml
+          if-no-files-found: error
+
+  # v* 标签 push 时发布正式 Release
+  release:
+    name: Release
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # goreleaser 创建 Release 并上传归档
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -22,10 +92,6 @@ jobs:
         with:
           go-version-file: tui/go.mod
           cache-dependency-path: tui/go.sum
-
-      - name: Run tests
-        working-directory: tui
-        run: go test ./...
 
       - name: Build and publish binaries
         uses: goreleaser/goreleaser-action@v6
