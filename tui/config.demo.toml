@@ -1,0 +1,23 @@
+# ai-usage-tui 配置示例
+#
+# 使用方法：将本文件复制为 config.toml，并放到可执行文件（ai-usage-tui）
+# 同目录下，程序启动时会自动读取。
+#
+# 配置优先级（高 → 低）：
+#   命令行参数  >  环境变量 AI_USAGE_BOARD_*  >  config.toml  >  内置默认值
+#
+# 未设置或留空的键回落到下一优先级。以下所有键均可省略。
+
+# 服务地址（默认 http://localhost:5173，对应环境变量 AI_USAGE_BOARD_URL）
+server = "http://100.64.0.1:8050"
+
+# 公共 API Token（对应环境变量 AI_USAGE_BOARD_TOKEN）
+# 为避免泄露，建议优先使用环境变量 AI_USAGE_BOARD_TOKEN
+# token = "your-secret-token"
+
+# 自动刷新间隔，0 表示关闭（对应 AI_USAGE_BOARD_INTERVAL）
+# Go duration 字符串格式：30s、5m、1h30m
+# interval = "5m"
+
+# HTTP 请求超时（对应 AI_USAGE_BOARD_TIMEOUT）
+# timeout = "30s"

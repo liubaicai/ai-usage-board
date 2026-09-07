@@ -5,17 +5,40 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
 )
 
 const defaultServerURL = "http://localhost:5173"
+const configFileName = "config.toml"
+
+// executableDir 返回可执行文件所在目录；包级变量便于测试替换。
+var executableDir = func() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(exe), nil
+}
 
 type Config struct {
 	ServerURL       string
 	Token           string
 	RefreshInterval time.Duration
 	Timeout         time.Duration
+}
+
+// fileConfig 对应 config.toml（与可执行文件同目录）的配置键，
+// 与 AI_USAGE_BOARD_* 环境变量一一对应。
+// interval / timeout 使用 Go duration 字符串，如 "5m"、"30s"。
+type fileConfig struct {
+	Server   string `toml:"server"`
+	Token    string `toml:"token"`
+	Interval string `toml:"interval"`
+	Timeout  string `toml:"timeout"`
 }
 
 func Parse(args []string) (Config, bool, error) {
@@ -25,13 +48,19 @@ func Parse(args []string) (Config, bool, error) {
 		}
 	}
 
-	serverDefault := firstNonEmpty(os.Getenv("AI_USAGE_BOARD_URL"), defaultServerURL)
-	tokenDefault := os.Getenv("AI_USAGE_BOARD_TOKEN")
-	intervalDefault, err := durationEnv("AI_USAGE_BOARD_INTERVAL", 5*time.Minute)
+	file, err := loadFileConfig()
 	if err != nil {
 		return Config{}, false, err
 	}
-	timeoutDefault, err := durationEnv("AI_USAGE_BOARD_TIMEOUT", 30*time.Second)
+
+	// 优先级：命令行参数 > 环境变量 > config.toml > 内置默认值
+	serverDefault := firstNonEmpty(os.Getenv("AI_USAGE_BOARD_URL"), file.Server, defaultServerURL)
+	tokenDefault := firstNonEmpty(os.Getenv("AI_USAGE_BOARD_TOKEN"), file.Token)
+	intervalDefault, err := durationValue("AI_USAGE_BOARD_INTERVAL", file.Interval, 5*time.Minute)
+	if err != nil {
+		return Config{}, false, err
+	}
+	timeoutDefault, err := durationValue("AI_USAGE_BOARD_TIMEOUT", file.Timeout, 30*time.Second)
 	if err != nil {
 		return Config{}, false, err
 	}
@@ -64,14 +93,38 @@ func Parse(args []string) (Config, bool, error) {
 	}, *showVersion, nil
 }
 
-func durationEnv(name string, fallback time.Duration) (time.Duration, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
+// loadFileConfig 读取可执行文件同目录的 config.toml。
+// 文件不存在时静默返回空配置；存在但无法解析时报错。
+func loadFileConfig() (fileConfig, error) {
+	dir, err := executableDir()
+	if err != nil {
+		return fileConfig{}, nil
+	}
+	path := filepath.Join(dir, configFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fileConfig{}, nil
+		}
+		return fileConfig{}, fmt.Errorf("读取配置文件失败 %s: %w", path, err)
+	}
+	var file fileConfig
+	if err := toml.Unmarshal(data, &file); err != nil {
+		return fileConfig{}, fmt.Errorf("解析配置文件失败 %s: %w", path, err)
+	}
+	return file, nil
+}
+
+// durationValue 依次取环境变量与 config.toml 中的时长字符串并解析，
+// 两者都为空时返回 fallback。
+func durationValue(envName, fileValue string, fallback time.Duration) (time.Duration, error) {
+	raw := firstNonEmpty(os.Getenv(envName), fileValue)
+	if raw == "" {
 		return fallback, nil
 	}
-	parsed, err := time.ParseDuration(value)
+	parsed, err := time.ParseDuration(strings.TrimSpace(raw))
 	if err != nil {
-		return 0, fmt.Errorf("环境变量 %s 不是有效时长: %w", name, err)
+		return 0, fmt.Errorf("无效时长 %q（来源：环境变量 %s 或 config.toml）: %w", raw, envName, err)
 	}
 	return parsed, nil
 }
@@ -94,6 +147,14 @@ func Usage() string {
   --interval 5m      自动刷新间隔，0 表示关闭
   --timeout 30s      HTTP 请求超时
   --version          显示版本
+
+配置文件:
+  config.toml（与可执行文件同目录，可选）可设置以下键，
+  优先级低于环境变量与命令行参数，参考 config.demo.toml：
+    server   = "http://localhost:5173"  服务地址
+    token    = "..."                    公共 API Token
+    interval = "5m"                     自动刷新间隔，0 表示关闭
+    timeout  = "30s"                    HTTP 请求超时
 
 环境变量:
   AI_USAGE_BOARD_URL, AI_USAGE_BOARD_TOKEN,
