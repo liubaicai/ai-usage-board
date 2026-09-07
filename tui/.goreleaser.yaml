@@ -32,9 +32,9 @@ archives:
       - goos: windows
         formats:
           - zip
-    extra_files:
-      - glob: config.demo.toml
-
+    # v2 语法：归档内附加自定义文件用 files（extra_files 不是合法字段）
+    files:
+      - config.demo.toml
 checksum:
   name_template: checksums.txt
 
