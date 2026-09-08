@@ -73,6 +73,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.loading {
 				return m.startFetch(true)
 			}
+		case "enter":
+			if !m.loading && len(m.data.Accounts) > 0 && m.cursor < len(m.data.Accounts) {
+				return m.startAccountFetch(m.data.Accounts[m.cursor].ID)
+			}
 		case "left", "h":
 			m.cursor = max(0, m.cursor-1)
 		case "right", "l":
@@ -169,6 +173,23 @@ func (m Model) startFetch(refresh bool) (tea.Model, tea.Cmd) {
 	m.err = nil
 	m.timerID++ // invalidate any outstanding timer
 	return m, tea.Batch(m.fetch(refresh), m.spinner.Tick)
+}
+
+func (m Model) fetchAccount(id string) tea.Cmd {
+	return func() tea.Msg {
+		data, err := m.client.RefreshAccount(context.Background(), id)
+		if err != nil {
+			return errorMsg{err: err}
+		}
+		return usageMsg{data: data}
+	}
+}
+
+func (m Model) startAccountFetch(id string) (tea.Model, tea.Cmd) {
+	m.loading = true
+	m.err = nil
+	m.timerID++ // invalidate any outstanding timer
+	return m, tea.Batch(m.fetchAccount(id), m.spinner.Tick)
 }
 
 func (m *Model) scheduleTick() tea.Cmd {
@@ -347,7 +368,7 @@ func (m Model) renderFooter(width int) string {
 	if m.refreshInterval > 0 {
 		interval = "每 " + m.refreshInterval.String() + " 自动刷新"
 	}
-	help := helpKeyStyle.Render("方向键/hjkl") + " 浏览卡片  " + helpKeyStyle.Render("r") + " 刷新  " + helpKeyStyle.Render("q") + " 退出"
+	help := helpKeyStyle.Render("方向键/hjkl") + " 浏览卡片  " + helpKeyStyle.Render("↵") + " 刷新选中  " + helpKeyStyle.Render("r") + " 全部刷新  " + helpKeyStyle.Render("q") + " 退出"
 	if len(m.data.Accounts) > 0 {
 		help += mutedStyle.Render(fmt.Sprintf("  %d/%d", m.cursor+1, len(m.data.Accounts)))
 	}

@@ -51,3 +51,29 @@ func TestRefreshUsesPost(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRefreshAccountPostsToAccountScopedEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		want := "/api/v1/usage/refresh/acc-1"
+		if r.URL.Path != want {
+			t.Fatalf("path = %s, want %s", r.URL.Path, want)
+		}
+		_, _ = w.Write([]byte(`{"apiVersion":"v1","summary":{"total":1},"accounts":[]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := client.RefreshAccount(context.Background(), "acc-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Summary.Total != 1 {
+		t.Fatalf("unexpected total: %d", result.Summary.Total)
+	}
+}

@@ -47,6 +47,11 @@ func (c *Client) Refresh(ctx context.Context) (UsageResponse, error) {
 	return c.request(ctx, http.MethodPost, "/api/v1/usage/refresh")
 }
 
+// RefreshAccount 在服务端刷新单个账号（id），随后返回全量公共快照。
+func (c *Client) RefreshAccount(ctx context.Context, id string) (UsageResponse, error) {
+	return c.request(ctx, http.MethodPost, "/api/v1/usage/refresh/"+url.PathEscape(id))
+}
+
 func (c *Client) request(ctx context.Context, method, path string) (UsageResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
 	if err != nil {

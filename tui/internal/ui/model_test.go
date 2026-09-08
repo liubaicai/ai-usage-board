@@ -3,7 +3,9 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/liubaicai/ai-usage-board/tui/internal/api"
@@ -116,5 +118,57 @@ func TestVisibleRowRangeUsesAdaptiveHeights(t *testing.T) {
 	start, end = visibleRowRange([]int{7, 15, 8}, 2, 23, 1)
 	if start != 2 || end != 3 {
 		t.Fatalf("visibleRowRange = (%d, %d), want (2, 3)", start, end)
+	}
+}
+
+func TestEnterRefreshesSelectedAccount(t *testing.T) {
+	model := Model{
+		data: api.UsageResponse{Accounts: []api.Account{
+			{ID: "acc-1", Label: "A"},
+			{ID: "acc-2", Label: "B"},
+		}},
+		cursor: 1,
+	}
+
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	next := updated.(Model)
+	if !next.loading {
+		t.Fatal("enter should put the model into loading state")
+	}
+	if cmd == nil {
+		t.Fatal("enter should return a command that refreshes the selected account")
+	}
+}
+
+func TestEnterIgnoredWhenLoading(t *testing.T) {
+	model := Model{
+		data: api.UsageResponse{Accounts: []api.Account{
+			{ID: "acc-1", Label: "A"},
+		}},
+		cursor: 0,
+		loading: true,
+	}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	next := updated.(Model)
+	if next.loading != true || cmd != nil {
+		t.Fatal("enter while loading should be ignored")
+	}
+}
+
+func TestEnterIgnoredWithoutAccounts(t *testing.T) {
+	model := Model{data: api.UsageResponse{}}
+	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Fatal("enter with no accounts should be ignored")
+	}
+	if updated.(Model).loading {
+		t.Fatal("no accounts: enter must not trigger loading")
+	}
+}
+
+func TestRenderFooterMentionsPerCardRefresh(t *testing.T) {
+	footer := (Model{refreshInterval: 5 * time.Minute, data: api.UsageResponse{Accounts: []api.Account{{ID: "a", Label: "A"}}}}).renderFooter(120)
+	if !strings.Contains(footer, "刷新选中") {
+		t.Fatalf("footer should mention per-card refresh: %q", footer)
 	}
 }
