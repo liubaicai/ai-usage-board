@@ -160,6 +160,5 @@ export const adapter: Adapter = async (config) => {
     windows,
     status: warn ? "warn" : "ok",
     plan: d.level ? `Coding ${d.level}` : undefined,
-    note: `套餐 ${d.level ?? "unknown"} · MCP 月度配额见控制台`,
   }
 }
