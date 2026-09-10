@@ -448,20 +448,39 @@ func windowAvailable(window api.QuotaWindow) bool {
 	return window.Available == nil || *window.Available
 }
 
+// isMonthlyWindow 判断是否为月度配额窗口（如 OpenCode 的"每月限额"）。
+// TUI 为统一卡片尺寸隐藏月限额，网页端保持展示。
+func isMonthlyWindow(window api.QuotaWindow) bool {
+	return strings.Contains(window.ID, "monthly") || strings.Contains(window.Label, "月")
+}
+
+// withoutMonthlyWindows 移除月度配额窗口（TUI 侧统一卡片高度的展示策略，不影响服务端数据）。
+func withoutMonthlyWindows(windows []api.QuotaWindow) []api.QuotaWindow {
+	result := make([]api.QuotaWindow, 0, len(windows))
+	for _, window := range windows {
+		if isMonthlyWindow(window) {
+			continue
+		}
+		result = append(result, window)
+	}
+	return result
+}
+
 func displayWindows(account api.Account) []api.QuotaWindow {
+	windows := withoutMonthlyWindows(account.Windows)
 	if account.VendorID != "codex" {
-		return account.Windows
+		return windows
 	}
 
 	templates := []api.QuotaWindow{
 		{ID: "codex-5h", Label: "5 小时限额"},
 		{ID: "codex-weekly", Label: "每周限额"},
 	}
-	matched := make([]bool, len(account.Windows))
-	result := make([]api.QuotaWindow, 0, len(account.Windows)+len(templates))
+	matched := make([]bool, len(windows))
+	result := make([]api.QuotaWindow, 0, len(windows)+len(templates))
 	for _, template := range templates {
 		found := -1
-		for index, window := range account.Windows {
+		for index, window := range windows {
 			if window.ID == template.ID || window.Label == template.Label {
 				found = index
 				break
@@ -469,14 +488,14 @@ func displayWindows(account api.Account) []api.QuotaWindow {
 		}
 		if found >= 0 {
 			matched[found] = true
-			result = append(result, account.Windows[found])
+			result = append(result, windows[found])
 			continue
 		}
 		available := false
 		template.Available = &available
 		result = append(result, template)
 	}
-	for index, window := range account.Windows {
+	for index, window := range windows {
 		if !matched[index] {
 			result = append(result, window)
 		}

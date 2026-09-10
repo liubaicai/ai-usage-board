@@ -163,6 +163,29 @@ func TestEnterIgnoredWithoutAccounts(t *testing.T) {
 	}
 }
 
+func TestDisplayWindowsHidesMonthly(t *testing.T) {
+	account := api.Account{
+		VendorID: "opencode",
+		Windows: []api.QuotaWindow{
+			{ID: "oc-5h", Label: "5 小时限额", UsedPercent: 10},
+			{ID: "oc-weekly", Label: "每周限额", UsedPercent: 20},
+			{ID: "oc-monthly", Label: "每月限额", UsedPercent: 30},
+		},
+	}
+	got := displayWindows(account)
+	if len(got) != 2 {
+		t.Fatalf("displayWindows returned %d windows, want 2 (monthly hidden): %+v", len(got), got)
+	}
+	for _, w := range got {
+		if w.ID == "oc-monthly" || strings.Contains(w.Label, "月") {
+			t.Fatalf("monthly window should be hidden from TUI: %+v", w)
+		}
+	}
+	if card := (Model{}).renderCard(account, 38, false); strings.Contains(card, "每月限额") {
+		t.Fatalf("card should not render monthly window: %q", card)
+	}
+}
+
 func TestRenderCardPadsContentToMinimumHeight(t *testing.T) {
 	balanceOnly := api.Account{
 		Label:   "DeepSeek",
