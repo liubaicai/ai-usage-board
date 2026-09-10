@@ -90,23 +90,20 @@ func TestRenderCodexAddsPlaceholderAndHidesInformationalNote(t *testing.T) {
 	}
 }
 
-func TestRenderHidesNormalProviderNotesButKeepsErrors(t *testing.T) {
+func TestRenderNeverShowsProviderNotes(t *testing.T) {
 	model := Model{}
-	normal := api.Account{
+	account := api.Account{
 		VendorID:   "antigravity",
 		VendorName: "Antigravity",
 		Label:      "Antigravity",
-		Status:     "ok",
-		Note:       "Gemini 组配额",
+		Status:     "error",
+		Note:       "套餐 pro · MCP 月度配额见控制台",
 	}
-	if card := model.renderCard(normal, 38, false); strings.Contains(card, "Gemini 组配额") {
-		t.Fatalf("normal informational note should be hidden: %q", card)
-	}
-	errorAccount := normal
-	errorAccount.Status = "error"
-	errorAccount.Note = "拉取失败"
-	if card := model.renderCard(errorAccount, 38, false); !strings.Contains(card, "拉取失败") {
-		t.Fatalf("error note should remain visible: %q", card)
+	for _, status := range []string{"ok", "warn", "error"} {
+		account.Status = status
+		if card := model.renderCard(account, 38, false); strings.Contains(card, "MCP 月度配额") {
+			t.Fatalf("note should never be rendered (status=%s): %q", status, card)
+		}
 	}
 }
 
@@ -163,6 +160,34 @@ func TestEnterIgnoredWithoutAccounts(t *testing.T) {
 	}
 	if updated.(Model).loading {
 		t.Fatal("no accounts: enter must not trigger loading")
+	}
+}
+
+func TestRenderCardPadsContentToMinimumHeight(t *testing.T) {
+	balanceOnly := api.Account{
+		Label:   "DeepSeek",
+		Status:  "ok",
+		Balance: &api.Balance{Amount: 12.34, Currency: "CNY"},
+	}
+	card := (Model{}).renderCard(balanceOnly, 38, false)
+	// header(1)+meta(1)+blank(1)+min content(4)+updated(1) = 8 行
+	if got := strings.Count(card, "\n") + 1; got < 8 {
+		t.Fatalf("balance card rendered %d lines, want >= 8 (min content pad)", got)
+	}
+
+	// 多 window 卡片不应被额外填充：仅需 > min-height
+	quota := api.Account{
+		Label:    "WorkBuddy",
+		Status:   "warn",
+		Windows:  []api.QuotaWindow{
+			{Label: "基础", UsedPercent: 0, ResetIn: "20d 22h"},
+			{Label: "活动", UsedPercent: 50, ResetIn: "30d 7h"},
+		},
+	}
+	quotaCard := (Model{}).renderCard(quota, 38, false)
+	quotaLines := strings.Count(quotaCard, "\n") + 1
+	if quotaLines < 9 { // 2 windows × 2 + 5 fixed = 9
+		t.Fatalf("quota card rendered %d lines, want >= 9", quotaLines)
 	}
 }
 

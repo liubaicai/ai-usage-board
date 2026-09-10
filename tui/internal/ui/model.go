@@ -274,6 +274,7 @@ func (m Model) renderGrid(width int) string {
 }
 
 func (m Model) renderCard(account api.Account, width int, selected bool) string {
+	const minContentLines = 4
 	innerWidth := max(18, width-6)
 	nameStyle := lipgloss.NewStyle().Bold(true)
 	if selected {
@@ -292,6 +293,7 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 	}
 	lines = append(lines, mutedStyle.Render(truncateWidth(meta, innerWidth)), "")
 
+	contentStart := len(lines)
 	if account.Balance != nil {
 		lines = append(lines, mutedStyle.Render("当前余额"))
 		lines = append(lines, lipgloss.NewStyle().Bold(true).Foreground(colorAccent).Render(formatBalance(*account.Balance)))
@@ -331,14 +333,12 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 			lines = append(lines, statusStyle(statusForPercent(window.UsedPercent)).Render(truncateWidth(value, max(5, innerWidth/3)))+" "+progressBar(window.UsedPercent, barWidth))
 		}
 	}
+	// 主体最少 4 行：每个 window 占 2 行（label+bar），余额卡约 2-3 行；
+	// 不足用空行补齐以保证同一行内不同卡片高度对齐（参照 WorkBuddy 卡片 2 windows 占据 4 行）
+	if pad := minContentLines - (len(lines) - contentStart); pad > 0 {
+		lines = append(lines, make([]string, pad)...)
+	}
 
-	note := ""
-	if account.Status != "ok" {
-		note = strings.TrimSpace(account.Note)
-	}
-	if note != "" {
-		lines = append(lines, statusStyle(account.Status).Render(truncateWidth(note, innerWidth)))
-	}
 	updated := "尚未刷新"
 	if account.LastFetched > 0 {
 		updated = "刷新 " + time.UnixMilli(account.LastFetched).Format("01-02 15:04:05")

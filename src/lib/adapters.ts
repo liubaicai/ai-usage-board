@@ -57,7 +57,7 @@ export async function fetchAccountUsage(
       balance: result.balance ?? account.balance,
       windows: result.windows ?? account.windows,
       status: result.status ?? "ok",
-      note: result.note ?? account.note,
+      note: result.note,
       lastFetched: now,
       updatedAt: formatTime(now),
     }
