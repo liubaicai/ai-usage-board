@@ -281,7 +281,16 @@ async function refreshCodexToken(
     refresh_token: refreshToken,
   })
   const { status, data } = await postForm("https://auth.openai.com/oauth/token", body)
-  if (status !== 200) throw new Error(`Token 刷新失败：HTTP ${status}`)
+  if (status !== 200) {
+    // 附上服务端错误码（如 invalid_grant），便于区分 refresh_token 失效与网关问题
+    const detail =
+      typeof data.error === "string"
+        ? data.error
+        : typeof data.error_description === "string"
+          ? data.error_description
+          : ""
+    throw new Error(`Token 刷新失败：HTTP ${status}${detail ? ` ${detail}` : ""}`)
+  }
   const accessToken = data.access_token
   if (!accessToken) throw new Error("Token 刷新失败：响应缺少 access_token")
   return {
@@ -407,8 +416,11 @@ async function safeRefresh(
 
 /**
  * 查询 Codex 用量（两层刷新机制）：
- * ① 主动刷新：access_token 过期时间（sub2api 导出的 expires_at，或 JWT exp）临近 < 10 分钟且有 refresh_token 时，先刷新再查询
- * ② 被动刷新：请求返回 401/403 且有 refresh_token 时，刷新一次并重试
+ * ① 主动刷新（best-effort）：access_token 过期时间（sub2api 导出的 expires_at，或 JWT exp）临近 < 10 分钟
+ *    且有 refresh_token 时先刷新；**刷新失败不中断**，继续用现有 access_token 尝试查询
+ *    （refresh_token 可能已被 Codex CLI 等其它客户端轮换消耗，但旧 access_token 往往仍有效）
+ * ② 被动刷新：请求返回 401/403 且有 refresh_token 时，刷新一次并重试；
+ *    若 refresh_token 已失效则给出「重新导出授权」的可操作提示
  * 刷新成功后按原格式（sub2api / auth.json / cliproxy）写回新凭证（configUpdate），下次刷新继续有效。
  */
 async function fetchCodexUsage(
@@ -419,19 +431,31 @@ async function fetchCodexUsage(
   let accountId = cred.accountId
   let refreshToken = cred.refreshToken
   let rotated = false
+  /** 主动刷新失败时的错误信息（用于在鉴权失败时给出更准确的根因） */
+  let refreshError: string | undefined
 
-  // ① 主动刷新：token 快过期（优先导出信息里的 expires_at，回退 JWT exp）
+  /** 用 refresh_token 换新 access_token 并更新本地状态 */
+  const tryRefresh = async (context: string): Promise<void> => {
+    const fresh = await safeRefresh(refreshToken!, context)
+    accessToken = fresh.accessToken
+    accountId = fresh.accountId ?? accountId
+    if (fresh.refreshToken) refreshToken = fresh.refreshToken
+    rotated = true
+  }
+
+  // ① 主动刷新（best-effort）：token 快过期（优先导出信息里的 expires_at，回退 JWT exp）
   let tokenExp = cred.tokenExpiresAt ? Date.parse(cred.tokenExpiresAt) : NaN
   if (Number.isNaN(tokenExp)) {
     const jwtExp = jwtExpiresAt(accessToken)
     tokenExp = jwtExp !== null ? jwtExp : NaN
   }
   if (refreshToken && !Number.isNaN(tokenExp) && tokenExp - Date.now() < REFRESH_AHEAD_MS) {
-    const fresh = await safeRefresh(refreshToken, "access_token 即将过期（主动刷新）")
-    accessToken = fresh.accessToken
-    accountId = fresh.accountId ?? accountId
-    if (fresh.refreshToken) refreshToken = fresh.refreshToken
-    rotated = true
+    try {
+      await tryRefresh("access_token 即将过期（主动刷新）")
+    } catch (e) {
+      // 降级：记录原因，继续用当前 access_token 查询（尚未真正过期）
+      refreshError = e instanceof Error ? e.message : "未知错误"
+    }
   }
 
   const finish = async (result: FetchResult): Promise<FetchResult> => {
@@ -468,16 +492,22 @@ async function fetchCodexUsage(
     return await finish(parseUsage(await queryWham(accessToken, accountId)))
   } catch (e) {
     const msg = e instanceof Error ? e.message : ""
-    // 已主动刷过或没有 refresh_token 或错误不是鉴权类 → 直接抛
-    if (rotated || !cred.refreshToken || (!msg.includes("HTTP 401") && !msg.includes("HTTP 403"))) {
+    const authError = msg.includes("HTTP 401") || msg.includes("HTTP 403")
+    // 已刷新成功、没有 refresh_token 或错误不是鉴权类 → 直接抛
+    if (rotated || !refreshToken || !authError) {
       throw e
     }
+    // 主动刷新已失败（refresh_token 确认无效）→ 不再重复请求，直接给出可操作提示
+    if (refreshError) {
+      throw new Error(`refresh_token 已失效，请在 Codex 重新登录后重新导出授权（${refreshError}）`)
+    }
     // ② 被动刷新：401/403 且未刷过
-    const fresh = await safeRefresh(cred.refreshToken, msg)
-    accessToken = fresh.accessToken
-    accountId = fresh.accountId ?? accountId
-    if (fresh.refreshToken) refreshToken = fresh.refreshToken
-    rotated = true
+    try {
+      await tryRefresh(msg)
+    } catch (e2) {
+      const m = e2 instanceof Error ? e2.message : "未知错误"
+      throw new Error(`refresh_token 已失效，请在 Codex 重新登录后重新导出授权（${m}）`)
+    }
     return finish(parseUsage(await queryWham(accessToken, accountId)))
   }
 }
