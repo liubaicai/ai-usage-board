@@ -438,6 +438,23 @@ function extractResources(data: unknown): QuotaResource[] {
   return list.map(toQuotaResource)
 }
 
+/** 其他资源包按显示名分组聚合：同名包（如同一批次发放的多个拉新权益包）合并为一个窗口 */
+function groupOtherResources(resources: QuotaResource[]): QuotaResource[] {
+  const groups = new Map<string, QuotaResource[]>()
+  for (const r of resources) {
+    const name = resolvePackageName(r.packageCode, r.packageName)
+    const list = groups.get(name)
+    if (list) list.push(r)
+    else groups.set(name, [r])
+  }
+  const merged: QuotaResource[] = []
+  for (const group of groups.values()) {
+    const agg = aggregateGroup(group)
+    if (agg) merged.push(agg)
+  }
+  return merged
+}
+
 /** 聚合同类资源包（如多个基础包/多个加量包），合并配额 */
 function aggregateGroup(resources: QuotaResource[]): QuotaResource | null {
   if (resources.length === 0) return null
@@ -487,23 +504,25 @@ function resourcesToWindows(resources: QuotaResource[]): QuotaWindow[] {
   const base = aggregateGroup(resources.filter(isBase))
   const extra = aggregateGroup(resources.filter(isExtra))
   const activity = aggregateGroup(resources.filter(isActivity))
-  const others = resources.filter((r) => !isBase(r) && !isExtra(r) && !isActivity(r))
+  // 其余资源包按显示名合并：同名包（如多个「CodeBuddy 个人版拉新权益包」）合并为一个窗口
+  const others = groupOtherResources(
+    resources.filter((r) => !isBase(r) && !isExtra(r) && !isActivity(r))
+  )
 
-  // 活动赠送包：主数字直接显示剩余余额（不显示百分比与总量），进度条仍按已用比例
-  const mkWindow = (r: QuotaResource, id: string, label: string, valueOnly = false): QuotaWindow => ({
+  // 资源包语义：主数字直接显示剩余额度（资源包以余额而非百分比表达），进度条仍按已用比例
+  const mkWindow = (r: QuotaResource, id: string, label: string): QuotaWindow => ({
     id,
     label,
     usedPercent: Math.round(r.usedPercent),
     resetIn: formatResetIn(r.cycleEndAt),
-    detail: valueOnly ? undefined : `${Math.round(r.remain)}/${Math.round(r.total)}`,
-    value: valueOnly ? `${Math.round(r.remain)}` : undefined,
+    value: `${Math.round(r.remain)}`,
   })
 
   const windows: QuotaWindow[] = []
   if (base) windows.push(mkWindow(base, "base", resolvePackageName(base.packageCode, base.packageName)))
-  if (activity) windows.push(mkWindow(activity, "activity", resolvePackageName(activity.packageCode, activity.packageName), true))
+  if (activity) windows.push(mkWindow(activity, "activity", resolvePackageName(activity.packageCode, activity.packageName)))
   if (extra) windows.push(mkWindow(extra, "extra", resolvePackageName(extra.packageCode, extra.packageName)))
-  // 其他包各自一个窗口
+  // 其他包（已按显示名合并）各自一个窗口
   others.forEach((r, i) =>
     windows.push(mkWindow(r, `other-${i}`, resolvePackageName(r.packageCode, r.packageName)))
   )
