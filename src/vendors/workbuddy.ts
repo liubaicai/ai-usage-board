@@ -378,7 +378,7 @@ function parseDateTimeToEpoch(v: unknown): number | null {
 /** 长包名归一到卡片短标签（窗口名区域宽度有限，官方包名过长会挤压重置时间） */
 const PACKAGE_NAME_ALIASES: { match: string; short: string }[] = [
   // 「CodeBuddy 个人版拉新权益包」等长名统一缩写
-  { match: "拉新权益包", short: "CodeBuddy权益包" },
+  { match: "权益包", short: "Codebuddy" },
 ]
 
 /** 解析包名称 */

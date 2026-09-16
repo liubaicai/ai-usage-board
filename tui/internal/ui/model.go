@@ -466,10 +466,12 @@ func withoutMonthlyWindows(windows []api.QuotaWindow) []api.QuotaWindow {
 	return result
 }
 
-// isBenefitWindow 判断是否为拉新权益类资源包窗口（如 WorkBuddy 的「CodeBuddy 权益包」）。
+// isBenefitWindow 判断是否为拉新权益类资源包窗口（如 WorkBuddy 卡片上的「Codebuddy」）。
+// 以服务端 others 分支生成的 "other-*" 窗口 ID 为准（显示名可被服务端改写，故不作主要判据），
+// 并兼容旧数据里携带「权益包」字样的标签。
 // TUI 只保留主体验包与活动包，权益包额度不占卡片空间；网页端保持展示。
 func isBenefitWindow(window api.QuotaWindow) bool {
-	return strings.Contains(window.Label, "权益包")
+	return strings.HasPrefix(window.ID, "other-") || strings.Contains(window.Label, "权益包")
 }
 
 // withoutBenefitWindows 移除拉新权益类资源包窗口（TUI 侧展示策略，不影响服务端数据）。
