@@ -375,6 +375,12 @@ function parseDateTimeToEpoch(v: unknown): number | null {
   return Number.isFinite(ts) ? ts : null
 }
 
+/** 长包名归一到卡片短标签（窗口名区域宽度有限，官方包名过长会挤压重置时间） */
+const PACKAGE_NAME_ALIASES: { match: string; short: string }[] = [
+  // 「CodeBuddy 个人版拉新权益包」等长名统一缩写
+  { match: "拉新权益包", short: "CodeBuddy权益包" },
+]
+
 /** 解析包名称 */
 function resolvePackageName(pkgCode: string | null, pkgName?: string | null): string {
   if (pkgCode === PACKAGE_CODE.extra) return "加量包"
@@ -386,7 +392,11 @@ function resolvePackageName(pkgCode: string | null, pkgName?: string | null): st
   )
     return "基础体验包"
   if (pkgCode === PACKAGE_CODE.proMon || pkgCode === PACKAGE_CODE.proYear) return "专业版订阅"
-  return pkgName || "基础包"
+  if (!pkgName) return "基础包"
+  for (const { match, short } of PACKAGE_NAME_ALIASES) {
+    if (pkgName.includes(match)) return short
+  }
+  return pkgName
 }
 
 /** 资源包记录（从 get-user-resource 响应中提取） */

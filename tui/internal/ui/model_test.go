@@ -186,6 +186,31 @@ func TestDisplayWindowsHidesMonthly(t *testing.T) {
 	}
 }
 
+func TestDisplayWindowsHidesBenefitPack(t *testing.T) {
+	// 服务端缩写后的短标签与旧的全称都应被 TUI 隐藏
+	account := api.Account{
+		VendorID: "workbuddy",
+		Windows: []api.QuotaWindow{
+			{ID: "base", Label: "基础体验包", UsedPercent: 0, Value: "500"},
+			{ID: "activity", Label: "活动赠送包", UsedPercent: 31, Value: "6916"},
+			{ID: "other-0", Label: "CodeBuddy权益包", UsedPercent: 0, Value: "116"},
+			{ID: "other-1", Label: "CodeBuddy个人版拉新权益包", UsedPercent: 0, Value: "66"},
+		},
+	}
+	got := displayWindows(account)
+	if len(got) != 2 {
+		t.Fatalf("displayWindows returned %d windows, want 2 (benefit pack hidden): %+v", len(got), got)
+	}
+	for _, w := range got {
+		if strings.Contains(w.Label, "权益包") {
+			t.Fatalf("benefit pack window should be hidden from TUI: %+v", w)
+		}
+	}
+	if card := (Model{}).renderCard(account, 38, false); strings.Contains(card, "权益包") {
+		t.Fatalf("card should not render benefit pack window: %q", card)
+	}
+}
+
 func TestRenderCardPadsContentToMinimumHeight(t *testing.T) {
 	balanceOnly := api.Account{
 		Label:   "DeepSeek",

@@ -466,8 +466,26 @@ func withoutMonthlyWindows(windows []api.QuotaWindow) []api.QuotaWindow {
 	return result
 }
 
+// isBenefitWindow 判断是否为拉新权益类资源包窗口（如 WorkBuddy 的「CodeBuddy 权益包」）。
+// TUI 只保留主体验包与活动包，权益包额度不占卡片空间；网页端保持展示。
+func isBenefitWindow(window api.QuotaWindow) bool {
+	return strings.Contains(window.Label, "权益包")
+}
+
+// withoutBenefitWindows 移除拉新权益类资源包窗口（TUI 侧展示策略，不影响服务端数据）。
+func withoutBenefitWindows(windows []api.QuotaWindow) []api.QuotaWindow {
+	result := make([]api.QuotaWindow, 0, len(windows))
+	for _, window := range windows {
+		if isBenefitWindow(window) {
+			continue
+		}
+		result = append(result, window)
+	}
+	return result
+}
+
 func displayWindows(account api.Account) []api.QuotaWindow {
-	windows := withoutMonthlyWindows(account.Windows)
+	windows := withoutBenefitWindows(withoutMonthlyWindows(account.Windows))
 	if account.VendorID != "codex" {
 		return windows
 	}
