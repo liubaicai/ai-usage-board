@@ -8,6 +8,7 @@ import { adapter as commandcodeAdapter, commandcode } from "./commandcode"
 import { adapter as copilotAdapter, copilot } from "./copilot"
 import { adapter as cursorAdapter, cursor } from "./cursor"
 import { adapter as deepseekAdapter, deepseek } from "./deepseek"
+import { adapter as doubaoWorkAdapter, doubaoWork } from "./doubao-work"
 import { adapter as geminiAdapter, gemini } from "./gemini"
 import { adapter as kiloAdapter, kilo } from "./kilo"
 import { adapter as minimaxAdapter, minimax } from "./minimax"
@@ -38,6 +39,7 @@ export const VENDORS: VendorDef[] = [
   cursor,
   windsurf,
   workbuddy,
+  doubaoWork,
   minimax,
   kilo,
   opencode,
@@ -65,6 +67,7 @@ export const ADAPTERS: Record<string, Adapter> = {
   [cursor.id]: cursorAdapter,
   [windsurf.id]: windsurfAdapter,
   [workbuddy.id]: workbuddyAdapter,
+  [doubaoWork.id]: doubaoWorkAdapter,
   [minimax.id]: minimaxAdapter,
   [kilo.id]: kiloAdapter,
   [opencode.id]: opencodeAdapter,
