@@ -89,6 +89,8 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
   const [config, setConfig] = useState<Record<string, string>>({})
   const [proxy, setProxy] = useState("")
   const [refreshSec, setRefreshSec] = useState<string>("inherit")
+  /** 是否在 TUI 客户端显示该卡片（默认显示；提交时转写为 hideInTui） */
+  const [showInTui, setShowInTui] = useState(true)
   // OAuth 设备授权状态（codex / copilot 通用）
   const [oauthFlow, setOauthFlow] = useState<{
     flow: "codex" | "copilot" | "workbuddy"
@@ -122,6 +124,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       setConfig({ ...initial.config })
       setProxy(initial.config.proxy ?? "")
       setRefreshSec(initial.refreshSec === null ? "inherit" : String(initial.refreshSec))
+      setShowInTui(!initial.hideInTui)
     } else {
       setVendorId(VENDORS[0].id)
       setLabel("")
@@ -129,6 +132,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       setConfig(vendorDefaults(VENDORS[0]))
       setProxy("")
       setRefreshSec("inherit")
+      setShowInTui(true)
     }
   }, [open, initial])
 
@@ -303,6 +307,7 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
       plan: plan.trim() || vendor.defaultPlan,
       config: out,
       refreshSec: sec,
+      hideInTui: !showInTui,
     })
     onClose()
   }
@@ -503,6 +508,37 @@ export function AccountDialog({ open, initial, onClose, onSave }: AccountDialogP
             <p className="mt-1.5 text-[10px] tracking-[0.08em] text-muted-foreground">
               单卡设置优先于全局刷新间隔；凭据仅保存在后端服务器。
             </p>
+          </div>
+
+          {/* TUI 客户端显示开关 */}
+          <div>
+            <span className={labelCls}>TUI 显示</span>
+            <div className="flex items-start justify-between gap-4 border border-border px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">在 TUI 客户端显示本卡片</p>
+                <p className="mt-1 text-[10px] leading-relaxed tracking-[0.08em] text-muted-foreground">
+                  关闭后该账号不会出现在命令行客户端的用量面板中（含账号计数与余额合计），网页端不受影响。
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={showInTui}
+                aria-label="在 TUI 客户端显示本卡片"
+                onClick={() => setShowInTui((v) => !v)}
+                className={cn(
+                  "relative mt-0.5 h-4 w-9 shrink-0 border transition-colors",
+                  showInTui ? "border-foreground bg-foreground" : "border-border bg-transparent"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-[2px] h-2.5 w-2.5 transition-all",
+                    showInTui ? "left-[22px] bg-background" : "left-[2px] bg-muted-foreground"
+                  )}
+                />
+              </button>
+            </div>
           </div>
         </div>
 

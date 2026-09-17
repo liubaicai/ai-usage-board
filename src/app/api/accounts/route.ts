@@ -17,7 +17,8 @@ export async function POST(req: Request) {
     vendor,
     input.label ?? "",
     input.config ?? {},
-    input.refreshSec ?? null
+    input.refreshSec ?? null,
+    input.hideInTui ?? false
   )
   if (input.plan?.trim()) acc.plan = input.plan.trim()
   const store = await saveStore((s) => {

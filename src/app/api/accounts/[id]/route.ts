@@ -26,6 +26,8 @@ export async function PUT(req: Request, { params }: Params) {
       plan: input.plan?.trim() || existing.plan,
       config,
       refreshSec: input.refreshSec ?? existing.refreshSec,
+      // 开关未随表单提交（老客户端）时保留原值
+      hideInTui: input.hideInTui ?? existing.hideInTui ?? false,
     }
   })
   const acc = store.accounts.find((a) => a.id === id)

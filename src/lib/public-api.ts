@@ -60,7 +60,10 @@ export function buildPublicUsageResponse(
   accounts: Account[],
   settings: AppSettings
 ): PublicUsageResponse {
-  const publicAccounts = accounts.map<PublicUsageAccount>((account) => {
+  // 服务端过滤：网页编辑中关闭「在 TUI 显示」的账号不下发，
+  // summary 计数与余额合计同样只统计可见账号，保证 TUI 顶部「账号 N」与卡片数一致。
+  const visibleAccounts = accounts.filter((account) => !account.hideInTui)
+  const publicAccounts = visibleAccounts.map<PublicUsageAccount>((account) => {
     const vendor = VENDOR_MAP[account.vendorId]
     const actualWindows = account.windows ?? []
     const matchedWindowIds = new Set<string>()

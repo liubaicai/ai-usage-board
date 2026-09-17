@@ -110,7 +110,8 @@ export function createAccountEntity(
   vendor: VendorDef,
   label: string,
   config: Record<string, string>,
-  refreshSec: number | null
+  refreshSec: number | null,
+  hideInTui = false
 ): Account {
   return {
     id: crypto.randomUUID(),
@@ -119,6 +120,7 @@ export function createAccountEntity(
     plan: vendor.defaultPlan,
     config,
     refreshSec,
+    hideInTui,
     status: "ok",
     lastFetched: 0,
     updatedAt: "",

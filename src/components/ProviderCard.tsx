@@ -447,6 +447,11 @@ export function ProviderCard({
           />
           {remainMs !== null ? formatCountdown(remainMs) : "手动"}
           {p.refreshSec !== null && <span className="text-accent">*</span>}
+          {p.hideInTui && (
+            <span className="text-accent" title="已在 TUI 客户端隐藏该卡片">
+              TUI 隐藏
+            </span>
+          )}
           <span className="hidden h-2.5 w-px bg-border sm:inline" aria-hidden />
           <span className="hidden sm:inline" title="上次刷新时间">{p.updatedAt}</span>
         </span>

@@ -126,6 +126,8 @@ export interface Account {
   config: Record<string, string>
   /** 单卡刷新间隔（秒）。null = 跟随全局；0 = 手动 */
   refreshSec: number | null
+  /** 在 TUI 客户端隐藏该卡片（网页端仍完整展示）。缺省/false 表示显示 */
+  hideInTui?: boolean
   status: ProviderStatus
   windows?: QuotaWindow[]
   balance?: Balance
@@ -152,6 +154,8 @@ export interface AccountInput {
   plan?: string
   config: Record<string, string>
   refreshSec: number | null
+  /** 在 TUI 客户端隐藏该卡片（缺省表示显示） */
+  hideInTui?: boolean
 }
 
 /** GET /api/state 的响应 */
