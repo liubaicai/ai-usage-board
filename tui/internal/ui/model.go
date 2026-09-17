@@ -282,7 +282,8 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 	}
 	headerRight := truncateWidth(strings.ToUpper(account.Plan), max(0, innerWidth/3))
 	nameWidth := max(5, innerWidth-lipgloss.Width(headerRight)-4)
-	headerLeft := statusStyle(account.Status).Render("■") + " " + nameStyle.Render(truncateWidth(account.Label, nameWidth))
+	state := effectiveStatus(account)
+	headerLeft := statusStyle(state).Render("■") + " " + nameStyle.Render(truncateWidth(account.Label, nameWidth))
 	lines := []string{alignLine(headerLeft, headerRight, innerWidth)}
 
 	meta := account.VendorName
@@ -346,9 +347,10 @@ func (m Model) renderCard(account api.Account, width int, selected bool) string 
 	lines = append(lines, mutedStyle.Render(updated))
 
 	borderColor := colorBorder
-	if account.Status == "error" {
+	switch state {
+	case "error":
 		borderColor = colorError
-	} else if account.Status == "warn" {
+	case "warn":
 		borderColor = colorWarn
 	}
 	if selected {
@@ -390,9 +392,9 @@ func progressBar(percent float64, width int) string {
 	percent = math.Max(0, math.Min(100, percent))
 	filled := int(math.Round(percent / 100 * float64(width)))
 	color := colorOK
-	if percent >= 90 {
+	if percent >= dangerPercent {
 		color = colorError
-	} else if percent >= 80 {
+	} else if percent >= warnPercent {
 		color = colorWarn
 	}
 	return lipgloss.NewStyle().Foreground(color).Render(strings.Repeat("█", filled)) +
@@ -523,12 +525,35 @@ func displayWindows(account api.Account) []api.QuotaWindow {
 	return result
 }
 
+// 用量阈值（百分比）：进度条高亮、卡片状态标记与边框告警共用同一口径。
+// warnPercent 与服务端 QUOTA_WARN_PERCENT（src/lib/types.ts）保持一致。
+const (
+	warnPercent   = 80
+	dangerPercent = 90
+)
+
 func statusForPercent(percent float64) string {
-	if percent >= 90 {
+	if percent >= dangerPercent {
 		return "error"
 	}
-	if percent >= 80 {
+	if percent >= warnPercent {
 		return "warn"
+	}
+	return "ok"
+}
+
+// effectiveStatus 计算卡片的实际状态。
+// 服务端 status 为权威来源：error 表示拉取失败，warn 表示厂商侧主动标注。
+// 但多数厂商并不在服务端标注 warn（如 Codex 恒为 ok，GLM/Kimi 才标注），
+// 因此这里再按可见窗口用量兜底推导，保证边框告警与进度条颜色始终一致。
+func effectiveStatus(account api.Account) string {
+	if account.Status == "error" || account.Status == "warn" {
+		return account.Status
+	}
+	for _, window := range displayWindows(account) {
+		if windowAvailable(window) && window.UsedPercent >= warnPercent {
+			return "warn"
+		}
 	}
 	return "ok"
 }

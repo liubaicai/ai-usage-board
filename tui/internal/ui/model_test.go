@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/liubaicai/ai-usage-board/tui/internal/api"
 )
@@ -38,6 +40,161 @@ func TestStatusForPercent(t *testing.T) {
 	if got := statusForPercent(90); got != "error" {
 		t.Fatalf("statusForPercent(90) = %q", got)
 	}
+}
+
+func TestEffectiveStatus(t *testing.T) {
+	tests := []struct {
+		name    string
+		account api.Account
+		want    string
+	}{
+		{
+			// Codex 服务端恒返回 ok，卡片告警需按窗口用量兜底推导
+			name: "codex window over threshold warns despite ok status",
+			account: api.Account{
+				VendorID: "codex",
+				Status:   "ok",
+				Windows: []api.QuotaWindow{
+					{ID: "codex-0", Label: "5 小时限额", UsedPercent: 82},
+					{ID: "codex-1", Label: "每周限额", UsedPercent: 12},
+				},
+			},
+			want: "warn",
+		},
+		{
+			name: "below threshold stays ok",
+			account: api.Account{
+				VendorID: "codex",
+				Status:   "ok",
+				Windows: []api.QuotaWindow{
+					{ID: "codex-0", Label: "5 小时限额", UsedPercent: 79},
+					{ID: "codex-1", Label: "每周限额", UsedPercent: 10},
+				},
+			},
+			want: "ok",
+		},
+		{
+			// 占位窗口（available=false，usedPercent 恒为 0）不应触发告警
+			name: "unavailable placeholder window is ignored",
+			account: api.Account{
+				VendorID: "codex",
+				Status:   "ok",
+				Windows: []api.QuotaWindow{
+					{ID: "codex-0", Label: "5 小时限额", UsedPercent: 0, Available: boolPtr(false)},
+					{ID: "codex-1", Label: "每周限额", UsedPercent: 30},
+				},
+			},
+			want: "ok",
+		},
+		{
+			// 被 TUI 隐藏的窗口（月限额）不参与边框告警，与可见进度条口径一致
+			name: "hidden monthly window does not warn",
+			account: api.Account{
+				VendorID: "opencode",
+				Status:   "ok",
+				Windows: []api.QuotaWindow{
+					{ID: "oc-5h", Label: "5 小时限额", UsedPercent: 10},
+					{ID: "oc-monthly", Label: "每月限额", UsedPercent: 95},
+				},
+			},
+			want: "ok",
+		},
+		{
+			name: "balance only account stays ok",
+			account: api.Account{
+				VendorID: "siliconflow",
+				Status:   "ok",
+				Balance:  &api.Balance{Amount: 3, Currency: "CNY"},
+			},
+			want: "ok",
+		},
+		{
+			name: "server warn is preserved",
+			account: api.Account{
+				VendorID: "zhipu-coding",
+				Status:   "warn",
+				Windows:  []api.QuotaWindow{{ID: "TOKENS_LIMIT-5 小时限额", Label: "5 小时限额", UsedPercent: 20}},
+			},
+			want: "warn",
+		},
+		{
+			name: "server error wins over window usage",
+			account: api.Account{
+				VendorID: "codex",
+				Status:   "error",
+				Windows:  []api.QuotaWindow{{ID: "codex-0", Label: "5 小时限额", UsedPercent: 95}},
+			},
+			want: "error",
+		},
+	}
+	for _, test := range tests {
+		if got := effectiveStatus(test.account); got != test.want {
+			t.Fatalf("%s: effectiveStatus() = %q, want %q", test.name, got, test.want)
+		}
+	}
+}
+
+// TestRenderCardBorderFollowsWindowUsage 保证边框告警与进度条同源：
+// 服务端 status 均为 ok 时，仅窗口用量越过阈值也必须让边框换色。
+func TestRenderCardBorderFollowsWindowUsage(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+
+	account := func(percent float64) api.Account {
+		return api.Account{
+			VendorID: "codex",
+			Label:    "Codex",
+			Status:   "ok",
+			Windows: []api.QuotaWindow{
+				{ID: "codex-0", Label: "5 小时限额", UsedPercent: percent},
+				{ID: "codex-1", Label: "每周限额", UsedPercent: 10},
+			},
+		}
+	}
+	calmCard := (Model{}).renderCard(account(60), 38, false)
+	warnCard := (Model{}).renderCard(account(85), 38, false)
+
+	calmBorder, warnBorder := borderColor(calmCard), borderColor(warnCard)
+	if calmBorder == "" || warnBorder == "" {
+		t.Fatalf("color profile was not applied, cannot inspect border color: %q", calmCard)
+	}
+	if calmBorder == warnBorder {
+		t.Fatalf("border color must change once a window crosses the warn threshold: %q", warnBorder)
+	}
+	// 越过阈值后边框应使用告警色（colorWarn）
+	want := ansiPattern.FindString(lipgloss.NewStyle().Foreground(colorWarn).Render("x"))
+	if want == "" {
+		t.Fatal("failed to resolve warn color sequence")
+	}
+	if warnBorder != want {
+		t.Fatalf("warn card border = %q, want warn color %q", warnBorder, want)
+	}
+	// 只有配色变化，卡片尺寸不受影响
+	calmText, warnText := stripANSI(calmCard), stripANSI(warnCard)
+	if lipgloss.Height(calmText) != lipgloss.Height(warnText) || lipgloss.Width(calmText) != lipgloss.Width(warnText) {
+		t.Fatal("card dimensions must not change with the usage percent")
+	}
+}
+
+var ansiPattern = regexp.MustCompile("\x1b\\[[0-9;]*m")
+
+// stripANSI 去掉 ANSI 颜色序列，便于比较纯文本内容。
+func stripANSI(value string) string {
+	return ansiPattern.ReplaceAllString(value, "")
+}
+
+// borderColor 取卡片左上角边框字符前的 ANSI 序列，用于断言边框配色。
+func borderColor(card string) string {
+	index := strings.Index(card, "╭")
+	if index < 0 {
+		return ""
+	}
+	head := card[:index]
+	return head[strings.LastIndex(head, "\x1b["):]
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func TestRenderCardsUseContentHeight(t *testing.T) {
@@ -142,7 +299,7 @@ func TestEnterIgnoredWhenLoading(t *testing.T) {
 		data: api.UsageResponse{Accounts: []api.Account{
 			{ID: "acc-1", Label: "A"},
 		}},
-		cursor: 0,
+		cursor:  0,
 		loading: true,
 	}
 	updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -226,9 +383,9 @@ func TestRenderCardPadsContentToMinimumHeight(t *testing.T) {
 
 	// 多 window 卡片不应被额外填充：仅需 > min-height
 	quota := api.Account{
-		Label:    "WorkBuddy",
-		Status:   "warn",
-		Windows:  []api.QuotaWindow{
+		Label:  "WorkBuddy",
+		Status: "warn",
+		Windows: []api.QuotaWindow{
 			{Label: "基础", UsedPercent: 0, ResetIn: "20d 22h"},
 			{Label: "活动", UsedPercent: 50, ResetIn: "30d 7h"},
 		},

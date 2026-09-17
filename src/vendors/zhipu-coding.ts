@@ -1,6 +1,6 @@
 import { authGetJson } from "@/lib/http"
 import type { Adapter } from "@/lib/adapters"
-import type { QuotaWindow, VendorDef } from "@/lib/types"
+import { statusFromWindows, type QuotaWindow, type VendorDef } from "@/lib/types"
 
 /**
  * GLM Coding Plan（智谱编码套餐）· 订阅制
@@ -155,10 +155,9 @@ export const adapter: Adapter = async (config) => {
     throw new Error(`响应缺少 limits：${JSON.stringify(d).slice(0, 120)}`)
   }
 
-  const warn = windows.some((w) => w.usedPercent >= 85)
   return {
     windows,
-    status: warn ? "warn" : "ok",
+    status: statusFromWindows(windows),
     plan: d.level ? `Coding ${d.level}` : undefined,
   }
 }

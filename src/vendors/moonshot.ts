@@ -1,6 +1,6 @@
 import { authGetJson } from "@/lib/http"
 import type { Adapter } from "@/lib/adapters"
-import type { Balance, QuotaWindow, VendorDef } from "@/lib/types"
+import { statusFromWindows, type Balance, type QuotaWindow, type VendorDef } from "@/lib/types"
 
 /**
  * Moonshot (Kimi) · 按量计费 + Kimi Code（Coding Plan 余量）
@@ -199,10 +199,9 @@ export const adapter: Adapter = async (config) => {
     if (!windows.length) {
       throw new Error(`响应缺少用量数据：${JSON.stringify(payload).slice(0, 120)}`)
     }
-    const warn = windows.some((w) => w.usedPercent >= 85)
     return {
       windows,
-      status: warn ? "warn" : "ok",
+      status: statusFromWindows(windows),
       plan: "Kimi Code",
       note: "Kimi Coding Plan 配额",
     }

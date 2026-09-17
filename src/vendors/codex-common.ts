@@ -1,6 +1,6 @@
 import { httpGetJson, postForm } from "@/lib/http"
 import type { Adapter, FetchResult } from "@/lib/adapters"
-import type { Balance, QuotaWindow } from "@/lib/types"
+import { statusFromWindows, type Balance, type QuotaWindow } from "@/lib/types"
 
 /**
  * Codex（OpenAI ChatGPT 订阅）用量查询公共模块。
@@ -539,7 +539,8 @@ function parseUsage(data: Record<string, unknown>): FetchResult {
     windows,
     plan,
     balance,
-    status: "ok",
+    // 任一窗口接近上限即标记 warn，与卡片进度条/边框的告警阈值一致
+    status: statusFromWindows(windows),
     note: credits?.has_credits === false ? undefined : "Codex 实时用量",
   }
 }

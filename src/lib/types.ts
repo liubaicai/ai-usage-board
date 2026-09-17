@@ -67,6 +67,21 @@ export interface QuotaWindow {
   group?: string
 }
 
+/**
+ * 配额告警阈值（百分比）：账号状态标记与进度条高亮统一以此为准。
+ * 客户端 TUI 的 warnPercent（tui/internal/ui/model.go）与此保持一致。
+ */
+export const QUOTA_WARN_PERCENT = 80
+
+/**
+ * 依据限额窗口推导账号状态：任一窗口用量达到告警阈值即视为 warn。
+ * 适配器可据此标注 status；未显式标注的厂商由客户端按同一阈值兜底。
+ */
+export function statusFromWindows(windows: QuotaWindow[] | undefined): ProviderStatus {
+  if (!windows?.length) return "ok"
+  return windows.some((w) => w.usedPercent >= QUOTA_WARN_PERCENT) ? "warn" : "ok"
+}
+
 /** 按量付费余额 */
 export interface Balance {
   amount: number
