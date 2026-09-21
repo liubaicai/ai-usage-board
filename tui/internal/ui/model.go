@@ -242,7 +242,8 @@ func (m Model) renderSummary(width int) string {
 
 func (m Model) renderGrid(width int) string {
 	const columnGap = 2
-	const rowGap = 1
+	// 行间不留空行：卡片上下边框直接贴合（原为 1 行空行）。
+	const rowGap = 0
 
 	columns := gridColumns(width)
 	cardWidth := (width - columnGap*(columns-1)) / columns

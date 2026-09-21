@@ -275,6 +275,47 @@ func TestVisibleRowRangeUsesAdaptiveHeights(t *testing.T) {
 	}
 }
 
+// TestRenderGridStacksRowsWithoutBlankLine 保证同一列的上下两张卡片紧贴：
+// 上一行卡片的底边框（╰…╯）之后必须立即是下一行卡片的顶边框（╭…╮），中间不留空行。
+func TestRenderGridStacksRowsWithoutBlankLine(t *testing.T) {
+	model := Model{
+		width:  60,
+		height: 60,
+		loaded: true,
+		data: api.UsageResponse{Accounts: []api.Account{
+			{
+				ID: "acc-1", Label: "Codex", VendorID: "codex", VendorName: "Codex", Status: "ok",
+				Windows: []api.QuotaWindow{
+					{ID: "codex-0", Label: "5 小时限额", UsedPercent: 20},
+					{ID: "codex-1", Label: "每周限额", UsedPercent: 30},
+				},
+			},
+			{
+				ID: "acc-2", Label: "DeepSeek", VendorName: "DeepSeek", Status: "ok",
+				Balance: &api.Balance{Amount: 12.34, Currency: "CNY"},
+			},
+		}},
+	}
+	if columns := gridColumns(60); columns != 1 {
+		t.Fatalf("fixture expects a single column at width 60, got %d", columns)
+	}
+
+	lines := strings.Split(stripANSI(model.renderGrid(60)), "\n")
+	transitions := 0
+	for index := 0; index < len(lines)-1; index++ {
+		if !strings.Contains(lines[index], "╰") || !strings.Contains(lines[index], "╯") {
+			continue
+		}
+		transitions++
+		if next := lines[index+1]; !strings.Contains(next, "╭") {
+			t.Fatalf("blank line between stacked cards at line %d: %q -> %q", index, lines[index], next)
+		}
+	}
+	if transitions == 0 {
+		t.Fatal("fixture did not produce stacked card rows; assertion would be vacuous")
+	}
+}
+
 func TestEnterRefreshesSelectedAccount(t *testing.T) {
 	model := Model{
 		data: api.UsageResponse{Accounts: []api.Account{
