@@ -153,6 +153,19 @@ docker compose -f docker-compose.dev.yml down
 1. **新增接入**：点击报头右上角「+ 新增接入」→ 在九宫格中选择供应商 → 按提示填写凭据与昵称 → 添加。
    - 例如 Codex 需要粘贴 `~/.codex/auth.json` 内容；Kimi 需要网页 Cookie；阿里云百炼需要 API Key + OrgID。
    - 凭据保存在**后端** `data/store.json`，前端只显示"已保存"占位，编辑时留空则保持不变。
+   - **Antigravity 的 token 从哪拿**：先在本机跑一次 `agy`（Antigravity CLI）并完成 Google 登录，然后按平台取：
+     - **macOS**：`~/.gemini/oauth_creds.json`
+     - **Linux**：`~/.gemini/antigravity-cli/antigravity-oauth-token`
+     - **Windows**：没有 token 文件，凭据存在**凭据管理器**里（控制面板 → 用户账户 → 凭据管理器 → Windows 凭据 → 通用凭据，名为 `gemini:antigravity`，密码框内容就是那段 JSON）。用 `scripts/export-agy-token.ps1` 可直接打印出来：
+       ```powershell
+       powershell -ExecutionPolicy Bypass -File .\scripts\export-agy-token.ps1
+       ```
+       把输出整段粘贴进「agy 登录 token JSON」即可（仓库会自动解析嵌套的 `token` 对象，并用 `id_token_email` 作账号名）。
+     - 凭据里的 `refresh_token` **必须**配合 OAuth Client Secret 才能续期，否则 access_token 过期（约 1 小时）后就会报错。加 `-WithSecret` 让脚本顺手从本机 `agy.exe` 里试出可用的那个 secret：
+       ```powershell
+       powershell -ExecutionPolicy Bypass -File .\scripts\export-agy-token.ps1 -WithSecret
+       ```
+       把最后一行 `GOCSPX-...` 填进账号的「Client Secret」，或给服务端设置环境变量 `ANTIGRAVITY_CLIENT_SECRET`。该值属于本机密钥，**不要提交进仓库**。
 2. **编辑 / 删除**：点击卡脚左侧 ✏️ / 🗑 按钮修改或删除该账号（编辑时厂商不可更换，删除需弹窗确认）。
 3. **刷新**：
    - **全局刷新间隔**：元信息条右侧下拉统一设定（30 秒 ~ 1 小时，或手动）。
@@ -178,6 +191,7 @@ ai-usage-board/
 ├── tsconfig.json
 ├── LICENSE
 ├── docs/                    # 文档与界面截图
+├── scripts/                 # 辅助脚本（export-agy-token.ps1：从 Windows 凭据管理器导出 Antigravity token）
 ├── tui/                     # Go + Bubble Tea 跨平台终端客户端（单文件发布）
 ├── data/                    # 运行期生成：store.json（含密钥，已 gitignore）
 └── src/
