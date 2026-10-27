@@ -13,8 +13,9 @@ import { statusFromWindows, type QuotaWindow, type VendorDef } from "@/lib/types
  *   POST cloudcode-pa.googleapis.com/v1internal:loadCodeAssist（拿套餐 / 项目 ID）→
  *   POST v1internal:retrieveUserQuotaSummary（分组配额摘要，目前唯一暴露每周限额的接口，
  *     响应 groups[].buckets[].window ∈ {5h, weekly} + remainingFraction/resetTime）
- * 展示：按分组各一行（Gemini / Claude & GPT），行内「5 小时限额」+「每周限额」（真实数据）；
- *   retrieveUserQuotaSummary 不可用时回退 fetchAvailableModels（5h 真实 + 每周占位）。
+ * 展示：仅取 Gemini 组的「5 小时限额」+「每周限额」两行（真实数据），
+ *   Claude & GPT 组不展示；retrieveUserQuotaSummary 不可用时回退 fetchAvailableModels
+ *   （5h 真实 + 每周占位）。
  * Antigravity 配额为按模型计（fraction 0.0-1.0，1.0 = 全部剩余），5 小时 / 每周窗口。
  */
 
@@ -341,91 +342,61 @@ function pickBucket(group: QuotaGroup | undefined, windows: string[]): QuotaBuck
   return buckets.find(hit)
 }
 
-/** 分组名归一：Gemini / Claude & GPT 两类，其余保留服务端原名 */
-function groupLabel(g: QuotaGroup): string {
-  const name = (g.displayName ?? "").trim()
-  const hint = `${name} ${g.description ?? ""}`
-  if (/gemini/i.test(name)) return "Gemini"
-  if (/claude|gpt|3p/i.test(name)) return "Claude & GPT"
-  if (/gemini/i.test(hint)) return "Gemini"
-  return name || "Quota"
-}
-
-interface GroupWindows {
-  group: string
-  windows: QuotaWindow[]
+/**
+ * 找出 Gemini 配额组。
+ * 服务端同时下发 Gemini 与 Claude & GPT 两组，本面板只展示 Gemini，
+ * 故按组名（displayName / description）或桶标识（gemini-5h / gemini-weekly）识别。
+ */
+function pickGeminiGroup(groups: QuotaGroup[]): QuotaGroup | undefined {
+  const isGemini = (g: QuotaGroup) => {
+    if (/gemini/i.test(`${g.displayName ?? ""} ${g.description ?? ""}`)) return true
+    const buckets = Array.isArray(g.buckets) ? g.buckets : []
+    return buckets.some((b) => /^gemini[-_]/i.test(b.bucketId ?? ""))
+  }
+  return groups.find(isGemini)
 }
 
 /**
- * 每个分组各产出「5 小时限额」+「每周限额」两个窗口（真实数据）。
- * 仅一个分组时不打 group 标记，保持原有两行竖排布局；
- * 多个分组时带 group 标记，前端 / TUI 各自按组同行渲染（Gemini / Claude & GPT）。
+ * 只取 Gemini 组的「5 小时限额」+「每周限额」两个窗口（真实数据）。
+ * Claude & GPT 组不展示；找不到 Gemini 组时返回 null，由适配器回退到
+ * 逐模型查询（该路径同样只统计 Gemini 模型）。
  */
 function buildSummaryWindows(
   groups: QuotaGroup[]
 ): { windows: QuotaWindow[]; note: string } | null {
+  const geminiGroup = pickGeminiGroup(groups)
+  if (!geminiGroup) return null
+
   const frac = (b: QuotaBucket | undefined) =>
     typeof b?.remainingFraction === "number" && Number.isFinite(b.remainingFraction)
       ? b.remainingFraction
       : null
   const toPercent = (f: number) => Math.min(100, Math.max(0, Math.round((1 - f) * 100)))
 
-  const perGroup: GroupWindows[] = []
-  for (const g of groups) {
-    const b5 = pickBucket(g, ["5h", "five-hour", "five_hour", "fivehour"])
-    const bWeek = pickBucket(g, ["weekly", "week", "7d"])
-    const f5 = frac(b5)
-    const fw = frac(bWeek)
-    const group = groupLabel(g)
-    const windows: QuotaWindow[] = []
-    if (f5 !== null) {
-      windows.push({
-        id: "antigravity-5h",
-        label: "5 小时限额",
-        usedPercent: toPercent(f5),
-        resetIn: formatResetIn(b5?.resetTime),
-      })
-    }
-    if (fw !== null) {
-      windows.push({
-        id: "antigravity-weekly",
-        label: "每周限额",
-        usedPercent: toPercent(fw),
-        resetIn: formatResetIn(bWeek?.resetTime),
-      })
-    }
-    if (windows.length) perGroup.push({ group, windows })
-  }
-  if (!perGroup.length) return null
+  const b5 = pickBucket(geminiGroup, ["5h", "five-hour", "five_hour", "fivehour"])
+  const bWeek = pickBucket(geminiGroup, ["weekly", "week", "7d"])
+  const f5 = frac(b5)
+  const fw = frac(bWeek)
 
-  // 单分组：沿用旧布局（不写 group），保持卡片外观不变
-  if (perGroup.length === 1) {
-    const only = perGroup[0]
-    return { windows: only.windows, note: `${only.group} · 分组配额` }
-  }
-
-  // 多分组：Gemini 组排最前（用户主要看 Gemini），其余按服务端顺序
-  const ordered = [...perGroup].sort((a, b) => {
-    const rank = (g: string) => (g === "Gemini" ? 0 : g === "Claude & GPT" ? 1 : 2)
-    return rank(a.group) - rank(b.group)
-  })
   const windows: QuotaWindow[] = []
-  ordered.forEach((entry, gi) => {
-    const slug = entry.group
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-    for (const w of entry.windows) {
-      // 首个分组保留模板 id（后端 / 公开 API 的窗口匹配仍能命中），其余加后缀保证唯一
-      const keepId = gi === 0
-      windows.push({
-        ...w,
-        id: keepId ? w.id : `antigravity-${slug || gi}-${w.id.replace("antigravity-", "")}`,
-        group: entry.group,
-      })
-    }
-  })
-  return { windows, note: ordered.map((e) => e.group).join(" / ") + " 分组配额" }
+  if (f5 !== null) {
+    windows.push({
+      id: "antigravity-5h",
+      label: "5 小时限额",
+      usedPercent: toPercent(f5),
+      resetIn: formatResetIn(b5?.resetTime),
+    })
+  }
+  if (fw !== null) {
+    windows.push({
+      id: "antigravity-weekly",
+      label: "每周限额",
+      usedPercent: toPercent(fw),
+      resetIn: formatResetIn(bWeek?.resetTime),
+    })
+  }
+  if (!windows.length) return null
+  return { windows, note: "Gemini 组配额" }
 }
 
 export const adapter: Adapter = async (config) => {
