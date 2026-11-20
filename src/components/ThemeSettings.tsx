@@ -6,6 +6,18 @@ import { ImagePlus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import {
+  BURN_IN_DEFAULTS,
+  REST_CYCLE_OPTIONS,
+  REST_SEC_OPTIONS,
+  SHIFT_PX_MAX,
+  SHIFT_SEC_OPTIONS,
+  WEEKDAY_LABELS,
+  readBurnIn,
+  writeBurnIn,
+  type BurnInConfig,
+  type BurnInSchedule,
+} from "@/lib/burn-in"
+import {
   BG_DEFAULTS,
   COLOR_THEMES,
   applyBackground,
@@ -30,6 +42,7 @@ interface ThemeSettingsProps {
 export function ThemeSettings({ open, dark, onClose }: ThemeSettingsProps) {
   const [themeId, setThemeId] = useState("swiss")
   const [bg, setBg] = useState<BackgroundConfig | null>(null)
+  const [burnIn, setBurnIn] = useState<BurnInConfig>(BURN_IN_DEFAULTS)
   const [url, setUrl] = useState("")
   const [error, setError] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
@@ -38,6 +51,7 @@ export function ThemeSettings({ open, dark, onClose }: ThemeSettingsProps) {
   useEffect(() => {
     setThemeId(readColorTheme())
     setBg(readBackground())
+    setBurnIn(readBurnIn())
   }, [])
 
   // Esc 关闭 + 锁定背景滚动
@@ -64,6 +78,25 @@ export function ThemeSettings({ open, dark, onClose }: ThemeSettingsProps) {
   const setBackground = (cfg: BackgroundConfig | null) => {
     setBg(cfg)
     applyBackground(cfg)
+  }
+
+  const updateBurnIn = (patch: Partial<BurnInConfig>) => {
+    const next = { ...burnIn, ...patch }
+    setBurnIn(next)
+    writeBurnIn(next)
+  }
+
+  const updateSchedule = (patch: Partial<BurnInSchedule>) => {
+    updateBurnIn({ schedule: { ...burnIn.schedule, ...patch } })
+  }
+
+  /** 至少保留一天，避免误操作成"永不亮屏" */
+  const toggleDay = (day: number) => {
+    const days = burnIn.schedule.days.includes(day)
+      ? burnIn.schedule.days.filter((d) => d !== day)
+      : [...burnIn.schedule.days, day].sort((a, b) => a - b)
+    if (days.length === 0) return
+    updateSchedule({ days })
   }
 
   const handleFile = async (file: File | undefined) => {
@@ -110,8 +143,214 @@ export function ThemeSettings({ open, dark, onClose }: ThemeSettingsProps) {
         </header>
 
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          {/* 配色主题 */}
+          {/* 屏幕保护（防烧屏） */}
           <section>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className={cn(labelCls, "mb-0")}>屏幕保护 · Burn-in Guard</span>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  整页缓慢微移打散静态图案，配合压暗与定时息屏，用于手机、平板长期常亮。
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={burnIn.enabled}
+                aria-label="启用屏幕保护"
+                onClick={() => updateBurnIn({ enabled: !burnIn.enabled })}
+                className={cn(
+                  "mt-0.5 flex h-6 w-11 shrink-0 items-center border px-0.5 transition-colors",
+                  burnIn.enabled
+                    ? "justify-end border-accent bg-accent/15"
+                    : "justify-start border-border"
+                )}
+              >
+                <span
+                  className={cn(
+                    "block h-4 w-4 transition-colors",
+                    burnIn.enabled ? "bg-accent" : "bg-muted-foreground/40"
+                  )}
+                />
+              </button>
+            </div>
+
+            {burnIn.enabled && (
+              <div className="mt-4 space-y-4 border-l-2 border-accent pl-3">
+                <label className="block">
+                  <span className="mb-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <span>位移幅度</span>
+                    <span className="tabular-nums">
+                      {burnIn.shiftPx === 0 ? "关闭" : `${burnIn.shiftPx} px`}
+                    </span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={SHIFT_PX_MAX}
+                    step={1}
+                    value={burnIn.shiftPx}
+                    onChange={(e) => updateBurnIn({ shiftPx: Number(e.target.value) })}
+                    className="w-full [accent-color:var(--accent)]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className={labelCls}>位移间隔</span>
+                  <select
+                    className={cn(inputCls, "appearance-none")}
+                    value={burnIn.shiftSec}
+                    onChange={(e) => updateBurnIn({ shiftSec: Number(e.target.value) })}
+                  >
+                    {SHIFT_SEC_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s < 60 ? `${s} 秒` : `${s / 60} 分钟`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 flex justify-between text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    <span>常态压暗</span>
+                    <span className="tabular-nums">{Math.round(burnIn.dim * 100)}%</span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={60}
+                    step={5}
+                    value={Math.round(burnIn.dim * 100)}
+                    onChange={(e) => updateBurnIn({ dim: Number(e.target.value) / 100 })}
+                    className="w-full [accent-color:var(--accent)]"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className={labelCls}>定时息屏</span>
+                  <select
+                    className={cn(inputCls, "appearance-none")}
+                    value={burnIn.restEveryMin}
+                    onChange={(e) => updateBurnIn({ restEveryMin: Number(e.target.value) })}
+                  >
+                    {REST_CYCLE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>
+                        {m === 0 ? "关闭" : `每 ${m} 分钟`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {burnIn.restEveryMin > 0 && (
+                  <label className="block">
+                    <span className={labelCls}>单次时长</span>
+                    <select
+                      className={cn(inputCls, "appearance-none")}
+                      value={burnIn.restSec}
+                      onChange={(e) => updateBurnIn({ restSec: Number(e.target.value) })}
+                    >
+                      {REST_SEC_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s < 60 ? `${s} 秒` : `${s / 60} 分钟`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <div className="border-t border-border pt-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="text-[11px] font-semibold">定时黑屏</span>
+                      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                        仅在亮屏时段内显示内容，时段外整屏纯黑并保持全屏。
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={burnIn.schedule.enabled}
+                      aria-label="启用定时黑屏"
+                      onClick={() => updateSchedule({ enabled: !burnIn.schedule.enabled })}
+                      className={cn(
+                        "mt-0.5 flex h-6 w-11 shrink-0 items-center border px-0.5 transition-colors",
+                        burnIn.schedule.enabled
+                          ? "justify-end border-accent bg-accent/15"
+                          : "justify-start border-border"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "block h-4 w-4 transition-colors",
+                          burnIn.schedule.enabled ? "bg-accent" : "bg-muted-foreground/40"
+                        )}
+                      />
+                    </button>
+                  </div>
+
+                  {burnIn.schedule.enabled && (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <span className={labelCls}>亮屏日</span>
+                        <div className="grid grid-cols-7 gap-1">
+                          {WEEKDAY_LABELS.map((d) => {
+                            const on = burnIn.schedule.days.includes(d.value)
+                            return (
+                              <button
+                                key={d.value}
+                                type="button"
+                                aria-pressed={on}
+                                onClick={() => toggleDay(d.value)}
+                                className={cn(
+                                  "h-8 border text-xs transition-colors",
+                                  on
+                                    ? "border-accent bg-accent/15 font-bold"
+                                    : "border-border text-muted-foreground"
+                                )}
+                              >
+                                {d.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className={labelCls}>亮屏开始</span>
+                          <input
+                            type="time"
+                            value={burnIn.schedule.start}
+                            onChange={(e) => updateSchedule({ start: e.target.value })}
+                            className={cn(inputCls, "dark:[color-scheme:dark]")}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className={labelCls}>亮屏结束</span>
+                          <input
+                            type="time"
+                            value={burnIn.schedule.end}
+                            onChange={(e) => updateSchedule({ end: e.target.value })}
+                            className={cn(inputCls, "dark:[color-scheme:dark]")}
+                          />
+                        </label>
+                      </div>
+
+                      <p className="text-[10px] leading-relaxed text-muted-foreground">
+                        结束早于开始时视为跨午夜。时段外轻触屏幕可临时点亮 60 秒，不退出全屏。
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  建议配合右上角全屏使用；息屏期间轻触任意位置即可唤醒。
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* 配色主题 */}
+          <section className="mt-7 border-t border-border pt-5">
             <span className={labelCls}>配色主题 · Color Theme</span>
             <div className="grid grid-cols-2 gap-2">
               {COLOR_THEMES.map((t) => {

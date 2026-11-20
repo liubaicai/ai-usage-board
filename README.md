@@ -51,6 +51,8 @@
 - **WorkBuddy 自动签到与保活**：国内版账号每天北京时间 09:00 自动签到、21:00 补偿重试，22:00 主动刷新 token；按账号持久化去重，服务重启不会重复执行
 - **状态告警**：用量 ≥80% / 余额过低 / 拉取失败时自动标红提示
 - **亮暗双主题**：跟随系统偏好，支持手动切换，本地记忆不闪烁
+- **全屏常亮**：全屏后隐藏报头与元信息条，并通过 Screen Wake Lock（不支持时回退 nosleep.js）阻止手机锁屏
+- **防烧屏屏幕保护**：整页按 1–4 px 八向缓慢位移打散静态图案，可叠加常态压暗、定时息屏与「亮屏时段」（时段外整屏纯黑但仍保持全屏，轻触临时点亮），用于手机、平板长期挂机显示
 - **全栈后端**：厂商接口请求、卡片列表/顺序、账号配置与 API Key 全部存放在后端，单一 JSON 文件存储
 
 > 💡 接入进度：**Codex（5 种授权）、Claude Code、GitHub Copilot（设备授权/PAT）、Gemini CLI、Antigravity（agy CLI，仅 Gemini 模型组的 5h/每周配额）、Command Code（commandcode.ai，Cookie 计费 5h/每周）、Ollama Cloud（API Key，5h/每周额度）、MiniMax（Coding Plan）、Cursor、Windsurf（Devin）、Kilo（Kilo Pass）、OpenCode、WorkBuddy（腾讯云 CodeBuddy）、豆包工作（字节跳动，Cookie 授权，当前时段/近 7 天双窗口）、DeepSeek、SiliconFlow、Moonshot (Kimi)、OpenRouter、GLM Coding Plan、中转站（OpenAI 兼容计费）** 均已接通真实查询（服务端直连厂商 API）。其中 Moonshot / 智谱 Coding Plan 区分国内/国际站（智谱另支持国内团队版）；**中转站**支持 new-api / one-api / uni-api / sub2api 三类计费接口，自动检测或手动指定格式。项目**不含任何 mock 数据**，厂商目录只保留已接入的供应商。新增厂商：在 `src/vendors/` 新建文件（导出 `VendorDef` + `Adapter`），再到 `index.ts` 注册即可。
@@ -173,6 +175,10 @@ docker compose -f docker-compose.dev.yml down
    - 也可随时点击报头的刷新按钮立即刷新全部；所有厂商请求由**后端**发起。
    - WorkBuddy 可在账号编辑中开启/关闭自动签到；token 每日保活始终启用，调度时区固定为 `Asia/Shanghai`，不依赖容器时区。
 4. **主题切换**：报头太阳/月亮按钮切换亮暗模式，偏好持久化。
+5. **长期常亮（防烧屏）**：外观设置 → 「屏幕保护」开启。整页按设定间隔做 1–4 px 的八向微移，把静态文字的硬边摊成斜坡；可叠加**常态压暗**与**定时息屏**（息屏期间整屏纯黑，轻触唤醒）。建议同时点报头全屏按钮——全屏后报头与元信息条隐藏，静态元素最少，且此时位移落在卡片网格上，遮罩不会被全屏层挡住。
+   - 配置存在本机 `localStorage`（键 `ai-usage-burn-in`），不落后端，各设备独立。
+   - 默认关闭：位移会让文本从次像素抗锯齿降为灰度抗锯齿，需显式开启。
+   - **定时黑屏**：设定「亮屏日 + 起始/结束时刻」，时段外整屏纯黑，但**不退出全屏、不释放 Wake Lock**（面板只是不发光）。轻触临时点亮 60 秒，点亮期间的任何操作自动续期，停手 60 秒后回到纯黑。结束时刻早于开始时刻视为跨午夜。默认值：周一至周五 08:00–20:00。
 
 ## 📁 项目目录结构
 
@@ -208,6 +214,7 @@ ai-usage-board/
     │       └── usage/                    # 用量刷新（服务端发起厂商请求）
     ├── components/
     │   ├── Dashboard.tsx     # 主界面：状态管理、ticker、拖拽、对话框编排
+    │   ├── BurnInGuard.tsx   # 防烧屏：像素位移 / 压暗 / 定时息屏，遮罩按需挂进全屏层
     │   ├── AccountDialog.tsx # 新增/编辑账号对话框（密钥 KEEP_SECRET 哨兵）
     │   ├── ConfirmDialog.tsx # 删除确认弹窗
     │   ├── ProviderCard.tsx  # 供应商用量卡片（限额进度条 / 余额）
@@ -232,6 +239,7 @@ ai-usage-board/
         ├── adapters.ts       # 适配器注册与调用（实现按厂商拆分在 vendors/）
         ├── http.ts           # 服务端带鉴权/超时的 HTTP 工具
         ├── client-api.ts     # 前端 API 客户端
+        ├── burn-in.ts        # 屏幕保护配置（幅度/间隔/压暗/息屏，存 localStorage）
         └── utils.ts          # cn() 工具函数
 ```
 

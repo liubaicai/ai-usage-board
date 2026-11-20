@@ -305,6 +305,8 @@
   }
   html {
     font-feature-settings: "tnum" 1, "cv05" 1;
+    /* 屏幕保护会把内容整体平移数像素，锁掉横向滚动避免出现横向抖动 */
+    overflow-x: hidden;
   }
   body {
     @apply bg-background text-foreground antialiased;

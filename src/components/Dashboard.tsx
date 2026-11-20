@@ -14,6 +14,7 @@ import { Maximize, Minimize, Moon, Plus, RefreshCw, Settings, Sun } from "lucide
 import NoSleep from "nosleep.js"
 
 import { AccountDialog } from "@/components/AccountDialog"
+import { BurnInGuard } from "@/components/BurnInGuard"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
 import { ProviderCard } from "@/components/ProviderCard"
 import { ThemeSettings } from "@/components/ThemeSettings"
@@ -332,165 +333,172 @@ export default function Dashboard() {
   const alerts = accounts.filter((p) => p.status !== "ok").length
 
   return (
-    <div className="min-h-screen">
-      {/* 报头 Masthead */}
-      <header className="border-b-2 border-foreground">
-        <div className="mx-auto flex max-w-[1600px] items-stretch justify-between px-5 sm:px-8">
-          <div className="flex items-center gap-4 py-5">
-            <span className="block h-4 w-4 bg-accent" aria-hidden />
-            <div>
-              <h1 className="text-2xl font-black leading-none tracking-tighter sm:text-3xl">
-                能量条
-              </h1>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
-                AI 订阅用量 · 余额总览 · ENERGY BAR
+    <>
+      {/* 页面外壳：屏幕保护的位移作用域，对话框留在其外以维持视口定位 */}
+      <div className="min-h-screen" data-burnin-shell>
+        {/* 报头 Masthead */}
+        <header className="border-b-2 border-foreground">
+          <div className="mx-auto flex max-w-[1600px] items-stretch justify-between px-5 sm:px-8">
+            <div className="flex items-center gap-4 py-5">
+              <span className="block h-4 w-4 bg-accent" aria-hidden />
+              <div>
+                <h1 className="text-2xl font-black leading-none tracking-tighter sm:text-3xl">
+                  能量条
+                </h1>
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">
+                  AI 订阅用量 · 余额总览 · ENERGY BAR
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-l border-border pl-4">
+              <Button
+                size="sm"
+                className="hidden sm:inline-flex"
+                onClick={() => {
+                  setEditing(null)
+                  setDialogOpen(true)
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                新增接入
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="sm:hidden"
+                aria-label="新增接入"
+                onClick={() => {
+                  setEditing(null)
+                  setDialogOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="立即刷新全部" onClick={refreshAll}>
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换明暗模式">
+                {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="外观设置"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleFullscreen}
+                aria-label={isFullscreen ? "退出全屏" : "全屏"}
+              >
+                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* 元信息条：日期 / 数量 / 告警 / 全局刷新 */}
+        <div className="border-b border-border">
+          <div className="mx-auto grid max-w-[1600px] grid-cols-2 divide-x divide-border text-[10px] font-semibold uppercase tracking-[0.18em] sm:grid-cols-4">
+            <div className="px-5 py-2.5 sm:px-8">{dateStr}</div>
+            <div className="px-5 py-2.5">
+              账号 <span className="tabular-nums">{accounts.length}</span>
+            </div>
+            <div className="px-5 py-2.5">
+              告警 <span className={alerts > 0 ? "text-accent" : ""}>{alerts}</span>
+            </div>
+            <label className="flex items-center gap-2 px-5 py-1.5 sm:px-8">
+              <span className="shrink-0 text-muted-foreground">全局刷新</span>
+              <select
+                className="w-full appearance-none bg-transparent py-1 uppercase outline-none"
+                value={String(globalRefreshSec)}
+                onChange={(e) => handleGlobalRefresh(Number(e.target.value))}
+              >
+                {REFRESH_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {/* 卡片网格：严格对齐、行内等高，响应式列数；支持拖拽排序 */}
+        <main
+          ref={mainRef}
+          className={cn(
+            "mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6",
+            isFullscreen &&
+              "h-screen w-screen max-w-none overflow-y-auto overflow-x-hidden bg-background pt-2 sm:pt-8"
+          )}
+        >
+          {isFullscreen && (
+            <div className="fixed bottom-3 right-3 z-50 sm:bottom-auto sm:top-3">
+              <Button variant="ghost" size="icon" onClick={toggleFullscreen} aria-label="退出全屏">
+                <Minimize className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {!loaded && (
+            <div className="py-16 text-center text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
+              加载中…
+            </div>
+          )}
+          {loaded && accounts.length === 0 && (
+            <div className="border border-dashed border-border py-20 text-center">
+              <span className="block h-3 w-3 bg-accent" aria-hidden />
+              <p className="mt-4 text-sm font-bold uppercase tracking-[0.24em]">
+                暂无接入
+              </p>
+              <p className="mt-2 text-xs tracking-[0.1em] text-muted-foreground">
+                点击右上角「+ 新增接入」，选择供应商并填写凭据
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 border-l border-border pl-4">
-            <Button
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={() => {
-                setEditing(null)
-                setDialogOpen(true)
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              新增接入
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="sm:hidden"
-              aria-label="新增接入"
-              onClick={() => {
-                setEditing(null)
-                setDialogOpen(true)
-              }}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label="立即刷新全部" onClick={refreshAll}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={toggle} aria-label="切换明暗模式">
-              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSettingsOpen(true)}
-              aria-label="外观设置"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleFullscreen}
-              aria-label={isFullscreen ? "退出全屏" : "全屏"}
-            >
-              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-      </header>
+          )}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={accounts.map((a) => a.id)} strategy={rectSortingStrategy}>
+              {/* 全屏时位移落在这里：全屏元素本身不动，遮罩才能严格贴合视口 */}
+              <div
+                data-burnin-content
+                className="grid grid-cols-2 items-stretch gap-2 xs:grid-cols-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4"
+              >
+                {accounts.map((a) => {
+                  const vendor = VENDOR_MAP[a.vendorId]
+                  if (!vendor) return null
+                  return (
+                    <ProviderCard
+                      key={a.id}
+                      account={a}
+                      vendor={vendor}
+                      globalRefreshSec={globalRefreshSec}
+                      now={now}
+                      onRefresh={(acc) => void refreshOne(acc.id)}
+                      refreshing={refreshingId === a.id}
+                      onEdit={(acc) => {
+                        setEditing(acc)
+                        setDialogOpen(true)
+                      }}
+                      onDelete={setConfirmDelete}
+                    />
+                  )
+                })}
+              </div>
+            </SortableContext>
+          </DndContext>
 
-      {/* 元信息条：日期 / 数量 / 告警 / 全局刷新 */}
-      <div className="border-b border-border">
-        <div className="mx-auto grid max-w-[1600px] grid-cols-2 divide-x divide-border text-[10px] font-semibold uppercase tracking-[0.18em] sm:grid-cols-4">
-          <div className="px-5 py-2.5 sm:px-8">{dateStr}</div>
-          <div className="px-5 py-2.5">
-            账号 <span className="tabular-nums">{accounts.length}</span>
-          </div>
-          <div className="px-5 py-2.5">
-            告警 <span className={alerts > 0 ? "text-accent" : ""}>{alerts}</span>
-          </div>
-          <label className="flex items-center gap-2 px-5 py-1.5 sm:px-8">
-            <span className="shrink-0 text-muted-foreground">全局刷新</span>
-            <select
-              className="w-full appearance-none bg-transparent py-1 uppercase outline-none"
-              value={String(globalRefreshSec)}
-              onChange={(e) => handleGlobalRefresh(Number(e.target.value))}
-            >
-              {REFRESH_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+          {/* 页脚 */}
+          <footer className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            <span>凭据仅存后端 · 不出服务器</span>
+            <span>
+              <span className="text-accent">*</span> 单卡刷新间隔 · 优先于全局
+            </span>
+          </footer>
+        </main>
       </div>
-
-      {/* 卡片网格：严格对齐、行内等高，响应式列数；支持拖拽排序 */}
-      <main
-        ref={mainRef}
-        className={cn(
-          "mx-auto max-w-[1600px] px-3 pb-12 pt-4 sm:px-8 sm:pb-16 sm:pt-6",
-          isFullscreen &&
-            "h-screen w-screen max-w-none overflow-y-auto bg-background pt-2 sm:pt-8"
-        )}
-      >
-        {isFullscreen && (
-          <div className="fixed bottom-3 right-3 z-50 sm:bottom-auto sm:top-3">
-            <Button variant="ghost" size="icon" onClick={toggleFullscreen} aria-label="退出全屏">
-              <Minimize className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-        {!loaded && (
-          <div className="py-16 text-center text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
-            加载中…
-          </div>
-        )}
-        {loaded && accounts.length === 0 && (
-          <div className="border border-dashed border-border py-20 text-center">
-            <span className="block h-3 w-3 bg-accent" aria-hidden />
-            <p className="mt-4 text-sm font-bold uppercase tracking-[0.24em]">
-              暂无接入
-            </p>
-            <p className="mt-2 text-xs tracking-[0.1em] text-muted-foreground">
-              点击右上角「+ 新增接入」，选择供应商并填写凭据
-            </p>
-          </div>
-        )}
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={accounts.map((a) => a.id)} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-2 items-stretch gap-2 xs:grid-cols-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-              {accounts.map((a) => {
-                const vendor = VENDOR_MAP[a.vendorId]
-                if (!vendor) return null
-                return (
-                  <ProviderCard
-                    key={a.id}
-                    account={a}
-                    vendor={vendor}
-                    globalRefreshSec={globalRefreshSec}
-                    now={now}
-                    onRefresh={(acc) => void refreshOne(acc.id)}
-                    refreshing={refreshingId === a.id}
-                    onEdit={(acc) => {
-                      setEditing(acc)
-                      setDialogOpen(true)
-                    }}
-                    onDelete={setConfirmDelete}
-                  />
-                )
-              })}
-            </div>
-          </SortableContext>
-        </DndContext>
-
-        {/* 页脚 */}
-        <footer className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          <span>凭据仅存后端 · 不出服务器</span>
-          <span>
-            <span className="text-accent">*</span> 单卡刷新间隔 · 优先于全局
-          </span>
-        </footer>
-      </main>
 
       <AccountDialog
         open={dialogOpen}
@@ -513,6 +521,8 @@ export default function Dashboard() {
         onCancel={() => setConfirmDelete(null)}
         onConfirm={() => void handleDelete()}
       />
-    </div>
+
+    <BurnInGuard />
+    </>
   )
 }
